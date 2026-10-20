@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Fragment } from 'react';
 import type { CalcState } from '../state/calculator';
+import { getMenuPage, menuItemCount } from '../state/settings';
 import { serialize, type Cursor, type ListPath, type Node } from '../input/nodes';
 import { DotMatrix } from './DotMatrix';
 
@@ -230,11 +231,126 @@ function HomeScreen({ state }: { state: CalcState }) {
   );
 }
 
+const MENU_ROWS = 4;
+
+function MenuScreen({ state }: { state: CalcState }) {
+  const definition = getMenuPage(state.menuPage, state.settings, state.ans);
+  const count = menuItemCount(definition);
+  const start = Math.max(0, Math.min(state.menuIndex - 1, count - MENU_ROWS));
+  const options = definition.mode === 'options' ? definition.options ?? [] : [];
+  const items = definition.mode === 'list' ? definition.items ?? [] : [];
+  const showNumbers = state.settings.showOptionNum === 'On';
+
+  return (
+    <div className="lcd-screen lcd-menu">
+      <div className="lcd-menu-head">
+        <Run text={definition.title} />
+        {count > 0 ? (
+          <span className="lcd-menu-count">
+            <Run text={`${state.menuIndex + 1}/${count}`} />
+          </span>
+        ) : null}
+      </div>
+
+      {definition.mode === 'message' ? (
+        <div className="lcd-menu-message">
+          {(definition.message ?? []).map((line, index) => (
+            <div className="lcd-menu-message-line" key={index}>
+              <Run text={line} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="lcd-menu-body">
+          <div className="lcd-menu-rows">
+            {options.slice(start, start + MENU_ROWS).map((option, offset) => {
+              const index = start + offset;
+              const selected = index === state.menuIndex;
+              const current = definition.setting
+                ? String(state.settings[definition.setting]) === String(option.value)
+                : false;
+              return (
+                <div
+                  className={`lcd-menu-row${selected ? ' is-selected' : ''}`}
+                  key={`${option.label}-${index}`}
+                  aria-current={selected ? 'true' : undefined}
+                >
+                  {showNumbers ? (
+                    <span className="lcd-menu-num">
+                      <Run text={String(index + 1)} />
+                    </span>
+                  ) : null}
+                  <span className="lcd-menu-label">
+                    <Run text={option.label} />
+                  </span>
+                  {current ? (
+                    <span className="lcd-menu-check">
+                      <Run text="✓" />
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
+
+            {items.slice(start, start + MENU_ROWS).map((item, offset) => {
+              const index = start + offset;
+              const selected = index === state.menuIndex;
+              return (
+                <div
+                  className={`lcd-menu-row${selected ? ' is-selected' : ''}`}
+                  key={`${item.label}-${index}`}
+                  aria-current={selected ? 'true' : undefined}
+                >
+                  {showNumbers ? (
+                    <span className="lcd-menu-num">
+                      <Run text={String(index + 1)} />
+                    </span>
+                  ) : null}
+                  <span className="lcd-menu-label">
+                    <Run text={item.label} />
+                  </span>
+                  {item.detail ? (
+                    <span className="lcd-menu-detail">
+                      <Run text={item.detail} />
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+
+          {count > MENU_ROWS ? (
+            <div className="lcd-menu-scroll" aria-hidden="true">
+              <span
+                className="lcd-menu-thumb"
+                style={{
+                  top: `${(start / count) * 100}%`,
+                  height: `${Math.max(2, (MENU_ROWS / count) * 100)}%`,
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {state.notice ? (
+        <div className="lcd-menu-foot is-notice">
+          <Run text={state.notice} />
+        </div>
+      ) : (
+        <div className="lcd-menu-foot">
+          <Run text={definition.mode === 'message' ? 'AC: BACK' : 'OK: SELECT  AC: BACK'} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CalcScreen({ state, solar }: { state: CalcState; solar: boolean }) {
   const output = state.error ?? state.result;
   const resultScale = output && output.length > 16 ? 1 : 2;
   const hasInput = state.input.length > 0;
-  const angle = state.angleUnit[0];
+  const angle = state.settings.angleUnit[0];
 
   return (
     <div className="lcd-screen lcd-calc">
@@ -267,6 +383,10 @@ function CalcScreen({ state, solar }: { state: CalcState; solar: boolean }) {
 }
 
 export function Display({ state, solar = false }: { state: CalcState; solar?: boolean }) {
+  const lcdStyle = {
+    filter: `contrast(${(0.94 + state.settings.contrast * 0.02).toFixed(2)})`,
+  } as CSSProperties;
+
   if (state.screen === 'off') {
     return <div className="lcd lcd-off" role="img" aria-label="Calculator is off" />;
   }
@@ -277,6 +397,7 @@ export function Display({ state, solar = false }: { state: CalcState; solar?: bo
       <div
         className="lcd"
         role="img"
+        style={lcdStyle}
         aria-label={`Calculator HOME screen. Selected app: ${selected.label}.${
           state.notice ? ` ${state.notice}.` : ''
         }`}
@@ -284,6 +405,32 @@ export function Display({ state, solar = false }: { state: CalcState; solar?: bo
         <HomeScreen state={state} />
         <span className="sr-only" aria-live="polite">
           {state.notice ?? `HOME screen. Selected app: ${selected.label}.`}
+        </span>
+      </div>
+    );
+  }
+
+  if (state.screen === 'menu') {
+    const definition = getMenuPage(state.menuPage, state.settings, state.ans);
+    const selected =
+      definition.mode === 'options'
+        ? definition.options?.[state.menuIndex]?.label
+        : definition.items?.[state.menuIndex]?.label;
+    const announcement = state.notice
+      ? `Notice: ${state.notice}.`
+      : definition.mode === 'message'
+        ? `${definition.title}. Press AC to close.`
+        : `${definition.title}.${selected ? ` Selected: ${selected}.` : ''}`;
+    return (
+      <div
+        className="lcd"
+        role="img"
+        style={lcdStyle}
+        aria-label={`Calculator menu. ${announcement}`}
+      >
+        <MenuScreen state={state} />
+        <span className="sr-only" aria-live="polite">
+          {announcement}
         </span>
       </div>
     );
@@ -298,6 +445,7 @@ export function Display({ state, solar = false }: { state: CalcState; solar?: bo
     <div
       className="lcd"
       role="img"
+      style={lcdStyle}
       aria-label={`Calculator display. ${
         state.input.length > 0 ? `Expression: ${serialize(state.input)}. ` : ''
       }${announcement}`}

@@ -405,6 +405,155 @@
   overflow: hidden;
 }
 
+/* Menus ------------------------------------------------------------------- */
+
+.lcd-menu {
+  padding: calc(1.4 * var(--u)) calc(2 * var(--u)) calc(1.2 * var(--u));
+  display: flex;
+  flex-direction: column;
+}
+
+.lcd-menu-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: calc(8 * var(--u));
+  border-bottom: calc(0.35 * var(--u)) solid rgba(36, 51, 37, 0.2);
+}
+
+.lcd-menu-count {
+  opacity: 0.5;
+}
+
+.lcd-menu-body {
+  flex: 1;
+  display: flex;
+  gap: calc(1 * var(--u));
+  min-height: 0;
+  padding-top: calc(0.7 * var(--u));
+}
+
+.lcd-menu-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: calc(1 * var(--u));
+  min-height: 0;
+}
+
+.lcd-menu-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(0.6 * var(--u));
+  height: calc(10 * var(--u));
+  padding: 0 calc(0.8 * var(--u));
+  border-radius: calc(1 * var(--u));
+  overflow: hidden;
+  line-height: 0;
+}
+
+.lcd-menu-row.is-selected {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg);
+}
+
+.lcd-menu-num {
+  flex: none;
+  margin-right: calc(1.4 * var(--u));
+  opacity: 0.5;
+}
+
+.lcd-menu-row.is-selected .lcd-menu-num {
+  opacity: 0.72;
+}
+
+.lcd-menu-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.lcd-menu-detail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+}
+
+.lcd-menu-row.is-selected .lcd-menu-detail {
+  opacity: 0.82;
+}
+
+.lcd-menu-check {
+  flex: none;
+  display: flex;
+  align-items: center;
+  opacity: 0.9;
+}
+
+.lcd-menu-scroll {
+  position: relative;
+  flex: none;
+  width: calc(1.6 * var(--u));
+  align-self: stretch;
+  margin: calc(0.4 * var(--u)) 0;
+}
+
+.lcd-menu-scroll::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: calc(1 * var(--u));
+  background: currentColor;
+  opacity: 0.12;
+}
+
+.lcd-menu-thumb {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border-radius: calc(1 * var(--u));
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.lcd-menu-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(0.4 * var(--u));
+  min-height: 0;
+  padding-top: calc(0.6 * var(--u));
+}
+
+.lcd-menu-message-line {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: calc(7.6 * var(--u));
+  overflow: hidden;
+}
+
+.lcd-menu-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: calc(7 * var(--u));
+  padding: calc(0.3 * var(--u)) 0 0 calc(0.6 * var(--u));
+  opacity: 0.5;
+  overflow: hidden;
+}
+
+.lcd-menu-foot.is-notice {
+  justify-content: center;
+  opacity: 0.74;
+}
+
 .display-footer {
   display: flex;
   align-items: center;

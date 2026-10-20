@@ -2,8 +2,8 @@
 
 > A single-page web app that opens on a **selector screen**, then renders a **pixel-faithful, fully functional replica** of the chosen calculator — same layout, keys, display, modes and behaviour.
 >
-> **Status:** Phase 0/1 in progress. First vertical slice implemented (engine, editor, state machine, selector, keypad, dot-matrix display).
-> **Revision:** 2 — 2026-10-20. Supersedes the initial planning draft.
+> **Status:** Phase 0/1/2 done as a vertical slice. Calculate, HOME, SETTINGS and FORMAT menus are working; remaining apps and settings fidelity are in progress.
+> **Revision:** 3 — 2026-10-20. Supersedes the initial planning draft.
 
 ---
 
@@ -31,7 +31,7 @@ These were wrong or under-specified and drive the architecture below:
 | 1 | DSEG7/DSEG14 segment fonts, ghost segments | CW+ uses a **192×63 dot-matrix LCD** with 4 grey levels | Build a dot-matrix renderer; segment fonts are irrelevant for this family |
 | 2 | `input: string` | MathI/O is a **2-D expression tree** with a cursor path | Structured input + cursor, not a string |
 | 3 | `decimal.js` for all arithmetic | Exact results (`1/3`, `√2`, `2π`) need **rational + surd + π** arithmetic | Exact value layer, decimal fallback |
-| 4 | "modes + SHIFT/ALPHA latches" | CW+ is **menu/screen driven** (HOME grid, SETTINGS, CATALOG, dialogs) | Screen stack in the state machine |
+| 4 | "modes + SHIFT/ALPHA latches" | CW+ is **menu/screen driven** (HOME grid, SETTINGS, CATALOG, dialogs) | Screen + menu context in the state machine |
 | 5 | fx-83GT CW+ and fx-85GT CW+ differ by functions | They are **functionally identical**; the 85 adds solar | One core, two specs |
 | 6 | 83/85/991 share one shell | 991CW+ has a different keypad and feature set | Share the core, not the shell |
 | 7 | 1–2 weeks for the engine | Parity is iterative and needs a fixture corpus | Plan in months, not weeks |
@@ -122,7 +122,8 @@ Rules:
 - `√` extracts square factors (`√8 → 2√2`) and rationalises divisions (`1/√2 → √2/2`).
 - Addition of unlike surds (`√2 + √3`) or `π × π` falls back to decimal.
 - Results are rounded to **10 significant digits for display**, with 40 digits of working precision.
-- `Norm1` switches to scientific notation outside `1e-9 … 1e10`.
+- Display uses **Norm 2** by default: scientific notation outside `1e-9 … 1e10`. `Norm 1` uses `1e-2 … 1e10`.
+- Output options include mixed/improper fractions, dot/comma decimal marks and optional digit grouping.
 - `Ans` and `PreAns` store `Value`, not strings, so exactness survives chaining.
 - Complex numbers, matrices and vectors are future value variants, not parser hacks.
 
@@ -163,7 +164,7 @@ This is the minimum needed for authentic editing. Function argument lists, power
 
 **Evaluator** — exact arithmetic first; decimal fallback for transcendentals. Angle mode is part of the evaluation context. Exact trig table for multiples of 30°/45°; other angles use decimal trig. Domain errors → `Math ERROR`.
 
-**Formatter** — exact first: `1/3`, `2√2`, `π/2`. Decimal: 10 significant digits, trailing zeros stripped, `×10^n` outside Norm1 range. The UI is responsible for pretty symbols (`×`, `÷`, `−`); the engine stores ASCII operators.
+**Formatter** — exact first: `1/3`, `2√2`, `π/2`, with optional mixed-number output (`1 1/2`). Decimal: 10 significant digits, trailing zeros stripped, `×10^n` outside the selected Norm range. Options also cover dot/comma decimal marks and digit grouping (`2,000`). The UI is responsible for pretty symbols (`×`, `÷`, `−`); the engine stores ASCII operators.
 
 `Ans`/`PreAns` and history are updated only on `=`.
 
@@ -175,6 +176,7 @@ This is the minimum needed for authentic editing. Function argument lists, power
 - 5×7 glyph cell with a 1-dot gap: exactly 32 small characters per line, 16 large.
 - Expression line: small glyphs, stacked fractions and radicals composed from runs.
 - Result line: large glyphs, automatically falls back to small above 16 characters.
+- Menu screen: title/count, a four-row scrolling window, inverted selected row, option numbers, current-option check, scrollbar and a status footer.
 - Indicator row: SHIFT, MathI/O, angle unit, history and solar flags.
 - 4-gradation grey is modelled with CSS colours; per-pixel greyscale is a later upgrade.
 - No official fonts or logos. The bitmap font is the classic Adafruit GFX 5×7 face (BSD-2-Clause), with math glyph overrides for `π √ × ÷ − ² ³ °`.
@@ -185,26 +187,46 @@ The shell is drawn in CSS from measured proportions; it is **not** a product pho
 
 ## 10. Interaction and screens
 
-CW+ interaction is menu-driven. The state machine therefore models a screen stack, not just a mode enum:
+CW+ interaction is menu-driven. The state machine keeps a screen plus a small menu context:
 
 ```ts
-type Screen = 'calc' | 'home' | 'off';
+type Screen = 'calc' | 'home' | 'off' | 'menu';
+
+interface MenuContext {
+  menuPage: MenuPage;
+  menuIndex: number;
+  menuReturn: 'calc' | 'home';
+}
 ```
 
-v1 implements the HOME grid and the Calculate app, plus a SETTINGS shortcut for the angle unit. Statistics, Table, Ratio and Math Box are represented on HOME but deliberately stubbed. A full screen stack (`settings`, `catalog`, dialogs) remains the next step.
+v1 implements:
+
+- the HOME grid and Calculate app;
+- the SETTINGS root: **Calc Settings**, **System Settings**, **Reset** and **Get Started**;
+- Calc Settings pages for Input/Output, Angle Unit, Number Format (Norm 1/Norm 2), Fraction Result, Decimal Mark, Digit Separator, the ×10ˣ key and the FORMAT key;
+- System Settings pages for Contrast, Auto Power Off, Show Option Num, MultiLine Font and QR Code (some values are stored preferences rather than hardware behaviours);
+- Reset Settings / Initialize All;
+- the FORMAT menu: Standard, Decimal, Improper Fraction and Mixed Number when the result is rational;
+- a four-row scrolling menu window with option numbers and a current-option check.
+
+Statistics, Table, Ratio and Math Box remain represented on HOME but deliberately stubbed. A general screen stack (`catalog`, dialogs, app-specific screens) is the next step.
 
 Key semantics:
 
 - **SHIFT is a latch**, pressed once and consumed by the next key.
 - **ALPHA** (future) is a second latch; both indicators live on the LCD.
-- `EXE` evaluates; the expression stays visible above the result. `OK` has the same effect in Calculate.
+- `EXE` evaluates; the expression stays visible above the result. `OK` selects a menu item and evaluates in Calculate.
 - After `EXE`, a digit starts a new expression; an operator continues from `Ans`.
-- `AC` clears input and result but keeps `Ans`, history and settings.
+- `AC` closes the current menu, or clears input and result when no menu is open. `←` / Back moves back one menu level.
 - `DEL` edits; `ON` powers on to HOME. `SHIFT` + `AC` powers off.
-- Arrow keys move the input cursor through nested templates, or the selection on HOME.
-- `FORMAT` toggles the current result between standard and decimal form; `SHIFT` + `7` inserts π and `SHIFT` + `8` inserts e.
+- Arrow keys move the input cursor through nested templates, the HOME selection, or the menu selection. `PageUp` / `PageDown` jump four menu rows.
+- `SETTINGS` on HOME opens **Get Started**; inside Calculate it opens the SETTINGS root. The angle chip in the page header is a direct shortcut that cycles DEG → RAD → GRA without opening the menu.
+- `FORMAT` behaviour is configurable. With the default **Decimal** setting, `FORMAT` toggles standard/decimal and `SHIFT` + `FORMAT` opens the FORMAT menu. With **Format Menu**, those actions are reversed. The shifted ≈ key always toggles.
+- `×10ˣ` inserts `×10^` in Sci Notat mode, or `^` in Power mode.
+- `SHIFT` + `a b/c` toggles the current result between improper and mixed form.
+- `SHIFT` + `7` inserts π and `SHIFT` + `8` inserts e.
 
-Physical keyboard mapping (v1): digits, `. + - * / ^ ( )`, `Enter`, `Backspace`, `Escape`, `h`, `PageUp`, `PageDown`, plus `s c t l n r f p a e`. `Shift` toggles the latch.
+Physical keyboard mapping (v1): digits, `. + - * / ^ ( ) %`, `Enter`, `Backspace`, `Escape`, arrows, `PageUp` / `PageDown`, `h`, `s c t l n r f p a e`. `Shift` toggles the latch. On-screen SETTINGS/FORMAT are used for the menus.
 
 ---
 
@@ -251,12 +273,13 @@ Feature flags gate apps. A model that lacks `matrix` must not expose matrix scre
 
 - Cards with a CSS shell preview, model name, and GCSE/A-level badges.
 - Search/filter eventually; v1 is a grid.
-- Remembers the last model in `localStorage`, but always starts on the selector.
+- Will remember the last model later; for now it always starts on the selector.
 
 **Simulator**
 
 - Responsive calculator shell, centred, scaled with `clamp()`.
-- Top bar: back, model, angle-unit control, SHIFT indicator.
+- Top bar: back, model, direct angle-unit chip (click to cycle), unofficial pill.
+- Contextual hint for HOME, menus, SHIFT and normal Calculate use.
 - Collapsible history panel and keyboard help.
 - No page reload when changing model.
 
@@ -271,10 +294,10 @@ Feature flags gate apps. A model that lacks `matrix` must not expose matrix scre
 
 ## 13. Persistence
 
-`localStorage` keys, versioned:
+Planned, not yet wired. Versioned `localStorage` keys:
 
 - `calcsim:v1:lastModel` — selected calculator id
-- `calcsim:v1:angle:<model>` — angle unit
+- `calcsim:v1:settings:<model>` — the full `CalcSettings` object (including angle unit)
 - `calcsim:v1:history:<model>` — optional history
 
 No sync. Corrupt/unparseable values are ignored.
@@ -288,12 +311,14 @@ No sync. Corrupt/unparseable values are ignored.
 | Exact values | `1/3`, `√8`, `1/√2`, `2π` | Vitest unit |
 | Parser | precedence, unary minus, implicit multiplication | Vitest unit |
 | Evaluator | trig table, domains, angle units | Vitest unit |
-| Formatter | fractions, surds, Norm1/scientific | Vitest unit |
+| Formatter | fractions, surds, mixed numbers, Norm 1/Norm 2, grouping, decimal mark | Vitest unit |
 | Editor | templates, cursor ascent/descent, DEL | Vitest unit |
-| State machine | key sequences, SHIFT latch, `Ans` | Vitest unit |
+| State machine | key sequences, SHIFT latch, `Ans`, menus, FORMAT, reset | Vitest unit |
 | Parity | recorded real-device outputs | Golden fixture corpus (next) |
 | E2E | click keys, assert display | Playwright (next) |
 | Visual | screenshot regression | Playwright (next) |
+
+Current automated suite: 50 Vitest cases across engine, editor and state machine. Menu rendering has also been checked in a headless browser at desktop, 390 px and 320 px widths.
 
 Golden fixtures use the same source string as the parser:
 
@@ -313,7 +338,7 @@ calculator-simulator/
 ├─ src/
 │  ├─ engine/          values.ts parser.ts evaluator.ts format.ts errors.ts
 │  ├─ input/           nodes.ts (tree, cursor, editing, serialisation)
-│  ├─ state/           calculator.ts (press → CalcState)
+│  ├─ state/           calculator.ts (press → CalcState), settings.ts (menu model)
 │  ├─ calculators/     types.ts specs.ts registry.ts
 │  ├─ components/      Display, DotMatrix, Keypad, Key, Shell
 │  ├─ screens/         Selector, Simulator
@@ -333,9 +358,9 @@ calculator-simulator/
 | **0** | Plan, stack, repo hygiene, font pipeline | done |
 | **1** | Exact value layer, parser, evaluator, formatter, tests | done (slice) |
 | **2** | Tree editor, state machine, dot-matrix display, shell, selector | done (slice) |
-| **3** | fx-83GT CW+ behavioural parity: key set, labels, SHIFT map, error cases | 2–3 weeks |
+| **3** | fx-83GT CW+ parity: shell, keys, Calculate, SETTINGS/FORMAT, error cases | in progress |
 | **4** | fx-85GT CW+ spec + fx-991CW+ shell and feature flags | 1–2 weeks |
-| **5** | Screens: HOME, SETTINGS, CATALOG; stats/table/complex/matrix engines | 6–10 weeks |
+| **5** | Remaining menus and apps: CATALOG, stats/table/complex/matrix engines; Fix/Sci and line input | 6–10 weeks |
 | **6** | PWA, persistence, accessibility audit, Playwright suite, deploy | 2–3 weeks |
 | **7** | Graphing core + fx-CG50/CG100 | 3–6 months |
 
@@ -364,6 +389,8 @@ These are part-time estimates. Behavioural parity with real hardware is the long
 3. **Exam mode:** model it visually, or omit it entirely?
 4. **Mobile:** portrait calculator-first, or landscape with side panels?
 5. **Deployment:** GitHub Pages vs Vercel; custom domain?
+6. **Number Format:** when Fix/Sci land, should the digit-choice step be a submenu or an inline value picker?
+7. **Line input:** implement a true LineI editor, or keep the setting as an output-only preference with an explicit notice?
 
 ---
 

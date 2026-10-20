@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CalculatorSpec, KeySpec } from '../calculators/types';
-import { createState, press, pressKey } from '../state/calculator';
+import { createState, cycleAngleState, press, pressKey } from '../state/calculator';
 import { Shell } from '../components/Shell';
 
 const KEYBOARD_MAP: Record<string, string> = {
@@ -99,10 +99,10 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
           <button
             type="button"
             className="chip-button"
-            onClick={() => setState((previous) => press(previous, 'settings'))}
-            aria-label={`Angle unit: ${state.angleUnit}. Click to change.`}
+            onClick={() => setState((previous) => cycleAngleState(previous))}
+            aria-label={`Angle unit: ${state.settings.angleUnit}. Click to cycle.`}
           >
-            {state.angleUnit}
+            {state.settings.angleUnit}
           </button>
           <span className="unofficial-pill">Unofficial</span>
         </div>
@@ -117,6 +117,11 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
             ) : state.screen === 'home' ? (
               <>
                 HOME screen. Use the arrows and <kbd>OK</kbd>, or just start typing a calculation.
+              </>
+            ) : state.screen === 'menu' ? (
+              <>
+                MENU. Use <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>OK</kbd>; <kbd>AC</kbd> or <kbd>←</kbd>{' '}
+                goes back.
               </>
             ) : state.shift ? (
               <span className="hint-active">
@@ -171,8 +176,9 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
                 : 'Battery-only sibling of the fx-85GT CW+.'}
             </p>
             <p className="muted">
-              The HOME menu and Calculate app are modelled. Statistics, Table, Ratio and Math Box
-              are visible but stubbed. Fractions, surds and standard-angle trig are exact.
+              The HOME menu, Calculate app and SETTINGS/FORMAT menus are modelled. Statistics,
+              Table, Ratio and Math Box are visible but stubbed. Fractions, surds and
+              standard-angle trig are exact.
             </p>
             <button
               type="button"

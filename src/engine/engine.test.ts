@@ -121,7 +121,36 @@ describe('logarithms and formatting', () => {
     expect(formatValue({ kind: 'decimal', dec: new Decimal(1).div(3) })).toBe('0.3333333333');
   });
 
-  it('switches to scientific notation outside Norm1', () => {
+  it('applies mixed, decimal-mark and digit-separator options', () => {
+    const threeHalves = {
+      kind: 'exact' as const,
+      exact: { kind: 'rational' as const, r: { n: 3n, d: 2n } },
+    };
+    expect(formatValue(threeHalves, { fractionResult: 'mixed' })).toBe('1 1/2');
+    expect(formatValue(threeHalves, { fractionResult: 'mixed', digitSeparator: true })).toBe(
+      '1 1/2',
+    );
+    expect(
+      formatValue(
+        { kind: 'decimal', dec: new Decimal('1234.5') },
+        { digitSeparator: true },
+      ),
+    ).toBe('1,234.5');
+    expect(
+      formatValue(
+        { kind: 'decimal', dec: new Decimal('1234.5') },
+        { digitSeparator: true, decimalMark: 'comma' },
+      ),
+    ).toBe('1.234,5');
+  });
+
+  it('applies Norm 1 and Norm 2 thresholds', () => {
+    const small = { kind: 'decimal' as const, dec: new Decimal('0.005') };
+    expect(formatValue(small)).toBe('0.005');
+    expect(formatValue(small, { numberFormat: 'norm1' })).toBe('5×10^-3');
+  });
+
+  it('switches to scientific notation outside Norm 2', () => {
     expect(calc('10000000000')).toBe('1×10^10');
     expect(calc('123456789012')).toBe('1.23456789×10^11');
     expect(calc('1/1000000000')).toBe('1/1000000000');

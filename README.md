@@ -15,10 +15,12 @@ Early vertical slice. Working:
 - Black CW+ 2nd-edition shell with a six-column function grid and five-column number pad
 - HOME menu with Calculate, Statistics, Table, Ratio and Math Box tiles
 - fx-83GT CW+ and fx-85GT CW+ specs (the 85 adds solar)
-- FORMAT key toggling standard/decimal results
+- SETTINGS menu with Calc Settings, System Settings, Reset and Get Started pages
+- Calc settings for angle unit, fraction result, decimal mark, digit separator, input/output decimal mode and the ×10ˣ key
+- Configurable FORMAT key, plus a FORMAT menu for standard, decimal, improper and mixed-number results
 - Unit tests for engine, editor and key handling
 
-Not yet implemented: the full SETTINGS menu (the key currently cycles the angle unit), statistics/table/ratio/math-box apps, variable/function/catalog/tools menus, matrix/complex apps, exam mode and PWA install.
+Partially modelled: Input/Output line modes (the setting is stored and decimal-output modes work, but the editor remains MathI), Number Format currently offers Norm 1/Norm 2 (Fix/Sci are not yet selectable), and some system settings are stored preferences rather than hardware behaviours. Statistics, Table, Ratio and Math Box, variable/function/catalog/tools menus, matrix/complex apps, exam mode and PWA install are not implemented.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the design and the corrected technical decisions.
 
@@ -37,7 +39,7 @@ npm run build      # type-check + production build
 |---|---|
 | `0`–`9`, `.` | digits |
 | `+ - * / ^ ( )` | operators |
-| `Enter` / `=` | evaluate (EXE) |
+| `Enter` / `=` | evaluate (EXE) or select a menu item |
 | `Backspace` | DEL |
 | `Escape` | AC |
 | `h` | HOME |
@@ -48,8 +50,11 @@ npm run build      # type-check + production build
 | `p` | π |
 | `a` | Ans |
 | `Shift` | toggle SHIFT latch |
-| arrows | move the cursor, or the HOME selection |
-| `PageUp` / `PageDown` | page the HOME selection |
+| arrows | move the cursor, the HOME selection, or the menu selection |
+| `Escape` / `AC` | leave the current menu (or clear a calculation) |
+| `PageUp` / `PageDown` | page the HOME selection or menu |
+
+On-screen **SETTINGS** and **FORMAT** keys open the menus; use the arrow keys and OK/AC to navigate. With the default FORMAT Key setting, SHIFT + FORMAT opens the FORMAT menu.
 
 ## Licence
 

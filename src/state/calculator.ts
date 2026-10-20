@@ -1,5 +1,5 @@
 import { CalcError } from '../engine/errors';
-import { decimalText, formatValue } from '../engine/format';
+import { decimalText, formatValue, type FormatOptions } from '../engine/format';
 import { autoCloseParentheses, parse } from '../engine/parser';
 import { evaluate } from '../engine/evaluator';
 import { ZERO, type AngleUnit, type Value } from '../engine/values';
@@ -18,8 +18,18 @@ import {
   type EditResult,
   type Node,
 } from '../input/nodes';
+import {
+  DEFAULT_SETTINGS,
+  applySetting,
+  currentOptionIndex,
+  getMenuPage,
+  menuItemCount,
+  type CalcSettings,
+  type FormatAction,
+  type MenuPage,
+} from './settings';
 
-export type Screen = 'calc' | 'home' | 'off';
+export type Screen = 'calc' | 'home' | 'off' | 'menu';
 
 export interface HistoryEntry {
   input: string;
@@ -32,7 +42,7 @@ export interface CalcState {
   result: string | null;
   error: string | null;
   shift: boolean;
-  angleUnit: AngleUnit;
+  settings: CalcSettings;
   ans: Value;
   preAns: Value;
   history: HistoryEntry[];
@@ -40,6 +50,9 @@ export interface CalcState {
   screen: Screen;
   homeIndex: number;
   notice: string | null;
+  menuPage: MenuPage;
+  menuIndex: number;
+  menuReturn: 'calc' | 'home';
 }
 
 const HOME_APPS = ['Calculate', 'Statistics', 'Table', 'Ratio', 'Math Box'];
@@ -51,7 +64,7 @@ export function createState(): CalcState {
     result: null,
     error: null,
     shift: false,
-    angleUnit: 'DEG',
+    settings: { ...DEFAULT_SETTINGS },
     ans: ZERO,
     preAns: ZERO,
     history: [],
@@ -59,6 +72,9 @@ export function createState(): CalcState {
     screen: 'home',
     homeIndex: 0,
     notice: null,
+    menuPage: 'settingsRoot',
+    menuIndex: 0,
+    menuReturn: 'home',
   };
 }
 
@@ -81,6 +97,8 @@ const HOME_KEYS = new Set([
   'back',
   'off',
   'format',
+  'formatMenu',
+  'approx',
   'variable',
   'function',
   'catalog',
@@ -98,7 +116,6 @@ const NOTICE_KEYS = new Set([
   'mixed',
   'comma',
   'ins',
-  'formatMenu',
 ]);
 
 /** Keys that begin a fresh expression once a result has been shown. */
@@ -157,10 +174,8 @@ const NOTICE_TEXT: Record<string, string> = {
   tools: 'TOOLS NOT MODELLED',
   xvar: 'VARIABLE X NOT MODELLED',
   qr: 'QR CODE NOT MODELLED',
-  mixed: 'MIXED NUMBERS NOT MODELLED',
-  comma: 'COMMA NOT MODELLED',
+  comma: 'COMMA INPUT NOT MODELLED',
   ins: 'INSERT MODE NOT MODELLED',
-  formatMenu: 'FORMAT MENU NOT MODELLED',
 };
 
 type Editor = (nodes: Node[], cursor: Cursor) => EditResult | null;
@@ -189,6 +204,61 @@ function cycleAngle(unit: AngleUnit): AngleUnit {
   return 'DEG';
 }
 
+/** The simulator's angle chip is a direct shortcut, not a SETTINGS key press. */
+export function cycleAngleState(state: CalcState): CalcState {
+  return {
+    ...state,
+    settings: { ...state.settings, angleUnit: cycleAngle(state.settings.angleUnit) },
+    notice: null,
+    shift: false,
+  };
+}
+
+function formatOptions(settings: CalcSettings): FormatOptions {
+  return {
+    decimalMark: settings.decimalMark === 'Comma' ? 'comma' : 'dot',
+    digitSeparator: settings.digitSeparator === 'On',
+    fractionResult: settings.fractionResult === 'Mixed Number' ? 'mixed' : 'improper',
+    numberFormat: settings.numberFormat === 'Norm 1' ? 'norm1' : 'norm2',
+  };
+}
+
+function formatStandard(value: Value, settings: CalcSettings): string {
+  return formatValue(value, formatOptions(settings));
+}
+
+function formatDecimal(value: Value, settings: CalcSettings): string {
+  return decimalText(value, formatOptions(settings));
+}
+
+function reformatResult(
+  result: string | null,
+  ans: Value,
+  previous: CalcSettings,
+  next: CalcSettings,
+): string | null {
+  if (!result) return result;
+  const before = formatOptions(previous);
+  const after = formatOptions(next);
+  const forms: Array<[string, string]> = [
+    [formatValue(ans, before), formatValue(ans, after)],
+    [decimalText(ans, before), decimalText(ans, after)],
+    [
+      formatValue(ans, { ...before, fractionResult: 'improper' }),
+      formatValue(ans, { ...after, fractionResult: 'improper' }),
+    ],
+    [
+      formatValue(ans, { ...before, fractionResult: 'mixed' }),
+      formatValue(ans, { ...after, fractionResult: 'mixed' }),
+    ],
+  ];
+
+  for (const [from, to] of forms) {
+    if (result === from) return to;
+  }
+  return result;
+}
+
 function evaluateInput(state: CalcState): CalcState {
   if (isEmpty(state.input)) return state;
   const source = autoCloseParentheses(serialize(state.input));
@@ -197,12 +267,18 @@ function evaluateInput(state: CalcState): CalcState {
     const value = evaluate(ast, {
       ans: state.ans,
       preAns: state.preAns,
-      angleUnit: state.angleUnit,
+      angleUnit: state.settings.angleUnit,
     });
     // Casio keeps decimal input decimal: 0.1 + 0.2 displays 0.3, while 1 ÷ 3
     // stays exact. A decimal literal anywhere in the expression forces S⇔D to D.
     const prefersDecimal = /(?:\d\.\d|\.\d)/.test(source);
-    const text = prefersDecimal ? decimalText(value) : formatValue(value);
+    const forceDecimal =
+      state.settings.inputOutput === 'MathI/DecimalO' ||
+      state.settings.inputOutput === 'LineI/DecimalO';
+    const text =
+      prefersDecimal || forceDecimal
+        ? formatDecimal(value, state.settings)
+        : formatStandard(value, state.settings);
     return {
       ...state,
       result: text,
@@ -225,8 +301,8 @@ function evaluateInput(state: CalcState): CalcState {
  */
 function toggleResultFormat(state: CalcState): CalcState {
   if (!state.result || state.error) return state;
-  const standard = formatValue(state.ans);
-  const decimal = decimalText(state.ans);
+  const standard = formatStandard(state.ans, state.settings);
+  const decimal = formatDecimal(state.ans, state.settings);
   if (state.result === standard) {
     return { ...state, result: decimal, notice: null };
   }
@@ -235,6 +311,194 @@ function toggleResultFormat(state: CalcState): CalcState {
   }
   // Results entered as decimals and never evaluated exactly fall here.
   return { ...state, result: decimal === state.result ? standard : decimal, notice: null };
+}
+
+function toggleMixedNumber(state: CalcState): CalcState {
+  if (!state.result || state.error) return state;
+  const options = formatOptions(state.settings);
+  const improper = formatValue(state.ans, { ...options, fractionResult: 'improper' });
+  const mixed = formatValue(state.ans, { ...options, fractionResult: 'mixed' });
+  if (improper === mixed) return state;
+  return {
+    ...state,
+    result: state.result === mixed ? improper : mixed,
+    notice: null,
+  };
+}
+
+function openMenu(
+  state: CalcState,
+  page: MenuPage,
+  returnTo: 'calc' | 'home' = state.menuReturn,
+): CalcState {
+  const definition = getMenuPage(page, state.settings, state.ans);
+  return {
+    ...state,
+    screen: 'menu',
+    menuPage: page,
+    menuIndex: currentOptionIndex(definition, state.settings),
+    menuReturn: returnTo,
+    notice: null,
+    shift: false,
+  };
+}
+
+function closeMenu(state: CalcState): CalcState {
+  return { ...state, screen: state.menuReturn, notice: null, shift: false };
+}
+
+function previousMenu(state: CalcState): CalcState {
+  const definition = getMenuPage(state.menuPage, state.settings, state.ans);
+  if (!definition.parent) return closeMenu(state);
+
+  const parent = getMenuPage(definition.parent, state.settings, state.ans);
+  const parentIndex = parent.items?.findIndex((item) => item.target === state.menuPage) ?? -1;
+  return {
+    ...state,
+    menuPage: definition.parent,
+    menuIndex: parentIndex >= 0 ? parentIndex : 0,
+    notice: null,
+    shift: false,
+  };
+}
+
+function openFormatMenu(state: CalcState): CalcState {
+  if (!state.result || state.error) return notice(state, 'NO RESULT TO FORMAT');
+  return openMenu(state, 'formatMenu', 'calc');
+}
+
+function applyFormatAction(state: CalcState, action: FormatAction): CalcState {
+  if (!state.result || state.error) {
+    return { ...state, screen: 'calc', notice: 'NO RESULT TO FORMAT', shift: false };
+  }
+
+  let result: string;
+  switch (action) {
+    case 'standard':
+      result = formatStandard(state.ans, state.settings);
+      break;
+    case 'decimal':
+      result = formatDecimal(state.ans, state.settings);
+      break;
+    case 'improper':
+      result = formatValue(state.ans, {
+        ...formatOptions(state.settings),
+        fractionResult: 'improper',
+      });
+      break;
+    case 'mixed':
+      result = formatValue(state.ans, {
+        ...formatOptions(state.settings),
+        fractionResult: 'mixed',
+      });
+      break;
+  }
+
+  return {
+    ...state,
+    screen: state.menuReturn,
+    result,
+    notice: null,
+    shift: false,
+  };
+}
+
+function activateMenu(state: CalcState): CalcState {
+  const definition = getMenuPage(state.menuPage, state.settings, state.ans);
+
+  if (definition.mode === 'message') {
+    return closeMenu(state);
+  }
+
+  if (definition.mode === 'options') {
+    const option = definition.options?.[state.menuIndex];
+    if (!option) return state;
+
+    if (definition.setting) {
+      if (option.value === undefined) return state;
+      const settings = applySetting(state.settings, definition.setting, option.value);
+      return {
+        ...state,
+        settings,
+        result: reformatResult(state.result, state.ans, state.settings, settings),
+        notice: null,
+        shift: false,
+      };
+    }
+
+    if (option.action) {
+      return applyFormatAction(state, option.action);
+    }
+    return state;
+  }
+
+  const item = definition.items?.[state.menuIndex];
+  if (!item) return state;
+  if (item.target) return openMenu(state, item.target);
+
+  if (item.action === 'resetSettings') {
+    const settings = { ...DEFAULT_SETTINGS };
+    return {
+      ...state,
+      settings,
+      result: reformatResult(state.result, state.ans, state.settings, settings),
+      menuPage: 'settingsRoot',
+      menuIndex: 0,
+      notice: 'SETTINGS RESET',
+      shift: false,
+    };
+  }
+
+  if (item.action === 'initializeAll') {
+    return { ...createState(), notice: 'ALL RESET' };
+  }
+
+  return state;
+}
+
+function pressMenu(state: CalcState, keyId: string): CalcState {
+  const definition = getMenuPage(state.menuPage, state.settings, state.ans);
+  const count = menuItemCount(definition);
+
+  switch (keyId) {
+    case 'up':
+      return count === 0
+        ? state
+        : { ...state, menuIndex: Math.max(0, state.menuIndex - 1), shift: false };
+    case 'down':
+      return count === 0
+        ? state
+        : { ...state, menuIndex: Math.min(count - 1, state.menuIndex + 1), shift: false };
+    case 'pageup':
+      return count === 0
+        ? state
+        : { ...state, menuIndex: Math.max(0, state.menuIndex - 4), shift: false };
+    case 'pagedown':
+      return count === 0
+        ? state
+        : { ...state, menuIndex: Math.min(count - 1, state.menuIndex + 4), shift: false };
+    case 'ok':
+    case 'equals':
+      return activateMenu(state);
+    case 'left':
+    case 'back':
+      return previousMenu(state);
+    case 'ac':
+      return closeMenu(state);
+    case 'home':
+      return { ...state, screen: 'home', notice: null, shift: false };
+    case 'on':
+      return {
+        ...createState(),
+        settings: state.settings,
+        ans: state.ans,
+        history: state.history,
+      };
+    case 'off':
+      return { ...state, screen: 'off', notice: null, shift: false };
+    default:
+      return state;
+  }
 }
 
 function moveHome(index: number, keyId: string): number {
@@ -269,12 +533,22 @@ export function press(state: CalcState, keyId: string): CalcState {
   // While the unit is off, only ON has any effect.
   if (state.screen === 'off') {
     if (keyId !== 'on') return state;
-    return { ...createState(), angleUnit: state.angleUnit, ans: state.ans, history: state.history };
+    return {
+      ...createState(),
+      settings: state.settings,
+      ans: state.ans,
+      history: state.history,
+    };
   }
 
   // A notice belongs to the last key press; any different action dismisses it.
   if (state.notice && !NOTICE_KEYS.has(keyId)) {
     state = { ...state, notice: null };
+  }
+
+  // Menus are modal: keys navigate the menu rather than editing the calculation.
+  if (state.screen === 'menu') {
+    return pressMenu(state, keyId);
   }
 
   // Any calculation key starts the Calculate app from HOME.
@@ -285,13 +559,18 @@ export function press(state: CalcState, keyId: string): CalcState {
   if (state.screen === 'home') {
     switch (keyId) {
       case 'on':
-        return { ...createState(), angleUnit: state.angleUnit, ans: state.ans, history: state.history };
+        return {
+          ...createState(),
+          settings: state.settings,
+          ans: state.ans,
+          history: state.history,
+        };
       case 'home':
         return { ...state, shift: false };
       case 'shift':
         return { ...state, shift: !state.shift };
       case 'settings':
-        return { ...state, angleUnit: cycleAngle(state.angleUnit), shift: false };
+        return openMenu(state, 'getStarted', 'home');
       case 'up':
       case 'down':
       case 'left':
@@ -325,6 +604,8 @@ export function press(state: CalcState, keyId: string): CalcState {
       case 'off':
         return { ...state, screen: 'off', shift: false, notice: null };
       case 'format':
+      case 'formatMenu':
+      case 'approx':
         return notice(state, 'NO RESULT TO FORMAT');
       case 'variable':
       case 'function':
@@ -369,7 +650,12 @@ export function press(state: CalcState, keyId: string): CalcState {
       };
 
     case 'on':
-      return { ...createState(), angleUnit: state.angleUnit, ans: state.ans, history: state.history };
+      return {
+        ...createState(),
+        settings: state.settings,
+        ans: state.ans,
+        history: state.history,
+      };
 
     case 'home':
       return { ...state, screen: 'home', notice: null, shift: false };
@@ -378,15 +664,27 @@ export function press(state: CalcState, keyId: string): CalcState {
       return { ...state, screen: 'home', notice: null, shift: false };
 
     case 'settings':
-      return { ...state, angleUnit: cycleAngle(state.angleUnit), shift: false };
+      return openMenu(state, 'settingsRoot', 'calc');
 
     case 'ok':
     case 'equals':
       return evaluateInput(state);
 
     case 'format':
+      return state.settings.formatKey === 'Decimal'
+        ? toggleResultFormat(state)
+        : openFormatMenu(state);
+
+    case 'formatMenu':
+      return state.settings.formatKey === 'Decimal'
+        ? openFormatMenu(state)
+        : toggleResultFormat(state);
+
     case 'approx':
       return toggleResultFormat(state);
+
+    case 'mixed':
+      return toggleMixedNumber(state);
 
     case 'off':
       return { ...state, screen: 'off', shift: false, notice: null };
@@ -397,10 +695,8 @@ export function press(state: CalcState, keyId: string): CalcState {
     case 'tools':
     case 'xvar':
     case 'qr':
-    case 'mixed':
     case 'comma':
     case 'ins':
-    case 'formatMenu':
       return notice(state, NOTICE_TEXT[keyId] ?? 'NOT MODELLED');
 
     case 'pageup':
@@ -462,6 +758,9 @@ export function press(state: CalcState, keyId: string): CalcState {
       });
 
     case 'exp10':
+      if (state.settings.expKey === 'Power') {
+        return edit(state, (nodes, cursor) => insertOp(nodes, cursor, '^'));
+      }
       return edit(state, (nodes, cursor) => {
         const times = insertOp(nodes, cursor, '*');
         const ten = insertNumber(times.nodes, times.cursor, '1');
