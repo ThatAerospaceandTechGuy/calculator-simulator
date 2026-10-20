@@ -12,11 +12,13 @@ Early vertical slice. Working:
 - Recursive-descent parser and evaluator with DEG/RAD/GRA
 - Tree-based MathI/O editor with fraction and radical templates
 - Dot-matrix display renderer (192 × 63)
-- Selector + calculator shell + keypad
-- fx-83GT CW+ and fx-85GT CW+ specs
+- Black CW+ 2nd-edition shell with a six-column function grid and five-column number pad
+- HOME menu with Calculate, Statistics, Table, Ratio and Math Box tiles
+- fx-83GT CW+ and fx-85GT CW+ specs (the 85 adds solar)
+- FORMAT key toggling standard/decimal results
 - Unit tests for engine, editor and key handling
 
-Not yet implemented: HOME/SETTINGS menus, statistics/table/matrix/complex apps, exam mode, PWA install, pixel-parity shell measurements.
+Not yet implemented: the full SETTINGS menu (the key currently cycles the angle unit), statistics/table/ratio/math-box apps, variable/function/catalog/tools menus, matrix/complex apps, exam mode and PWA install.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the design and the corrected technical decisions.
 
@@ -35,9 +37,10 @@ npm run build      # type-check + production build
 |---|---|
 | `0`–`9`, `.` | digits |
 | `+ - * / ^ ( )` | operators |
-| `Enter` / `=` | evaluate |
+| `Enter` / `=` | evaluate (EXE) |
 | `Backspace` | DEL |
 | `Escape` | AC |
+| `h` | HOME |
 | `s c t` | sin / cos / tan |
 | `l n` | log / ln |
 | `r` | √ |
@@ -45,7 +48,8 @@ npm run build      # type-check + production build
 | `p` | π |
 | `a` | Ans |
 | `Shift` | toggle SHIFT latch |
-| arrows | move input cursor |
+| arrows | move the cursor, or the HOME selection |
+| `PageUp` / `PageDown` | page the HOME selection |
 
 ## Licence
 

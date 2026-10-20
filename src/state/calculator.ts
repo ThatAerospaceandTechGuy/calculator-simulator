@@ -19,7 +19,7 @@ import {
   type Node,
 } from '../input/nodes';
 
-export type Screen = 'calc' | 'home' | 'settings';
+export type Screen = 'calc' | 'home' | 'off';
 
 export interface HistoryEntry {
   input: string;
@@ -38,7 +38,11 @@ export interface CalcState {
   history: HistoryEntry[];
   justEvaluated: boolean;
   screen: Screen;
+  homeIndex: number;
+  notice: string | null;
 }
+
+const HOME_APPS = ['Calculate', 'Statistics', 'Table', 'Ratio', 'Math Box'];
 
 export function createState(): CalcState {
   return {
@@ -52,9 +56,50 @@ export function createState(): CalcState {
     preAns: ZERO,
     history: [],
     justEvaluated: false,
-    screen: 'calc',
+    screen: 'home',
+    homeIndex: 0,
+    notice: null,
   };
 }
+
+/** Keys that are meaningful on the HOME screen without starting a calculation. */
+const HOME_KEYS = new Set([
+  'on',
+  'home',
+  'settings',
+  'shift',
+  'up',
+  'down',
+  'left',
+  'right',
+  'ok',
+  'equals',
+  'pageup',
+  'pagedown',
+  'ac',
+  'del',
+  'back',
+  'off',
+  'format',
+  'variable',
+  'function',
+  'catalog',
+  'tools',
+]);
+
+/** Keys whose only job is to display an informational notice. */
+const NOTICE_KEYS = new Set([
+  'variable',
+  'function',
+  'catalog',
+  'tools',
+  'xvar',
+  'qr',
+  'mixed',
+  'comma',
+  'ins',
+  'formatMenu',
+]);
 
 /** Keys that begin a fresh expression once a result has been shown. */
 const VALUE_KEYS = new Set([
@@ -72,6 +117,7 @@ const VALUE_KEYS = new Set([
   'lparen',
   'neg',
   'pi',
+  'e',
   'ans',
   'preans',
   'frac',
@@ -104,6 +150,19 @@ const OPERATOR_TEXT: Record<string, string> = {
   neg: '-',
 };
 
+const NOTICE_TEXT: Record<string, string> = {
+  variable: 'VARIABLES NOT MODELLED',
+  function: 'FUNCTIONS NOT MODELLED',
+  catalog: 'CATALOG NOT MODELLED',
+  tools: 'TOOLS NOT MODELLED',
+  xvar: 'VARIABLE X NOT MODELLED',
+  qr: 'QR CODE NOT MODELLED',
+  mixed: 'MIXED NUMBERS NOT MODELLED',
+  comma: 'COMMA NOT MODELLED',
+  ins: 'INSERT MODE NOT MODELLED',
+  formatMenu: 'FORMAT MENU NOT MODELLED',
+};
+
 type Editor = (nodes: Node[], cursor: Cursor) => EditResult | null;
 
 function edit(state: CalcState, editor: Editor): CalcState {
@@ -115,8 +174,13 @@ function edit(state: CalcState, editor: Editor): CalcState {
     cursor: outcome.cursor,
     result: null,
     error: null,
+    notice: null,
     justEvaluated: false,
   };
+}
+
+function notice(state: CalcState, text: string): CalcState {
+  return { ...state, notice: text, shift: false };
 }
 
 function cycleAngle(unit: AngleUnit): AngleUnit {
@@ -143,6 +207,7 @@ function evaluateInput(state: CalcState): CalcState {
       ...state,
       result: text,
       error: null,
+      notice: null,
       ans: value,
       preAns: state.ans,
       justEvaluated: true,
@@ -150,11 +215,127 @@ function evaluateInput(state: CalcState): CalcState {
     };
   } catch (error) {
     const code = error instanceof CalcError ? error.code : 'Math ERROR';
-    return { ...state, result: null, error: code, justEvaluated: true };
+    return { ...state, result: null, error: code, notice: null, justEvaluated: true };
   }
 }
 
+/**
+ * S⇔D / FORMAT behaviour. The 2nd edition FORMAT key toggles the current
+ * result between its standard and decimal forms on a single press.
+ */
+function toggleResultFormat(state: CalcState): CalcState {
+  if (!state.result || state.error) return state;
+  const standard = formatValue(state.ans);
+  const decimal = decimalText(state.ans);
+  if (state.result === standard) {
+    return { ...state, result: decimal, notice: null };
+  }
+  if (state.result === decimal) {
+    return { ...state, result: standard, notice: null };
+  }
+  // Results entered as decimals and never evaluated exactly fall here.
+  return { ...state, result: decimal === state.result ? standard : decimal, notice: null };
+}
+
+function moveHome(index: number, keyId: string): number {
+  switch (keyId) {
+    case 'left':
+      return [0, 0, 1, 3, 3][index] ?? index;
+    case 'right':
+      return [1, 2, 2, 4, 4][index] ?? index;
+    case 'up':
+      return [0, 1, 2, 0, 1][index] ?? index;
+    case 'down':
+      return [3, 4, 2, 3, 4][index] ?? index;
+    case 'pageup':
+      return Math.max(0, index - 3);
+    case 'pagedown':
+      return Math.min(HOME_APPS.length - 1, index + 3);
+    default:
+      return index;
+  }
+}
+
+/** Launch the selected HOME app. Only the Calculate app is implemented. */
+function launchHome(state: CalcState): CalcState {
+  if (state.homeIndex === 0) {
+    return { ...state, screen: 'calc', notice: null, shift: false };
+  }
+  const app = HOME_APPS[state.homeIndex] ?? 'APP';
+  return notice(state, `${app.toUpperCase()} NOT MODELLED`);
+}
+
 export function press(state: CalcState, keyId: string): CalcState {
+  // While the unit is off, only ON has any effect.
+  if (state.screen === 'off') {
+    if (keyId !== 'on') return state;
+    return { ...createState(), angleUnit: state.angleUnit, ans: state.ans, history: state.history };
+  }
+
+  // A notice belongs to the last key press; any different action dismisses it.
+  if (state.notice && !NOTICE_KEYS.has(keyId)) {
+    state = { ...state, notice: null };
+  }
+
+  // Any calculation key starts the Calculate app from HOME.
+  if (state.screen === 'home' && !HOME_KEYS.has(keyId)) {
+    state = { ...state, screen: 'calc', homeIndex: 0, notice: null };
+  }
+
+  if (state.screen === 'home') {
+    switch (keyId) {
+      case 'on':
+        return { ...createState(), angleUnit: state.angleUnit, ans: state.ans, history: state.history };
+      case 'home':
+        return { ...state, shift: false };
+      case 'shift':
+        return { ...state, shift: !state.shift };
+      case 'settings':
+        return { ...state, angleUnit: cycleAngle(state.angleUnit), shift: false };
+      case 'up':
+      case 'down':
+      case 'left':
+      case 'right':
+      case 'pageup':
+      case 'pagedown':
+        return {
+          ...state,
+          homeIndex: moveHome(state.homeIndex, keyId),
+          notice: null,
+          shift: false,
+        };
+      case 'ok':
+      case 'equals':
+        return launchHome(state);
+      case 'ac':
+        return {
+          ...state,
+          input: [],
+          cursor: createCursor(),
+          result: null,
+          error: null,
+          notice: null,
+          shift: false,
+          justEvaluated: false,
+        };
+      case 'del':
+        return { ...state, notice: null, shift: false };
+      case 'back':
+        return { ...state, notice: null, shift: false };
+      case 'off':
+        return { ...state, screen: 'off', shift: false, notice: null };
+      case 'format':
+        return notice(state, 'NO RESULT TO FORMAT');
+      case 'variable':
+      case 'function':
+      case 'catalog':
+      case 'tools':
+        return notice(state, NOTICE_TEXT[keyId] ?? 'NOT MODELLED');
+      default:
+        return state;
+    }
+  }
+
   // After `=`, a value key starts a new expression; an operator continues from Ans.
   if (state.justEvaluated) {
     if (VALUE_KEYS.has(keyId)) {
@@ -176,34 +357,67 @@ export function press(state: CalcState, keyId: string): CalcState {
       return { ...state, shift: !state.shift };
 
     case 'ac':
-      return { ...state, input: [], cursor: createCursor(), result: null, error: null, justEvaluated: false };
+      return {
+        ...state,
+        input: [],
+        cursor: createCursor(),
+        result: null,
+        error: null,
+        notice: null,
+        justEvaluated: false,
+        shift: false,
+      };
 
     case 'on':
       return { ...createState(), angleUnit: state.angleUnit, ans: state.ans, history: state.history };
 
     case 'home':
-      return { ...state, screen: 'calc' };
+      return { ...state, screen: 'home', notice: null, shift: false };
+
+    case 'back':
+      return { ...state, screen: 'home', notice: null, shift: false };
 
     case 'settings':
-      return { ...state, angleUnit: cycleAngle(state.angleUnit) };
+      return { ...state, angleUnit: cycleAngle(state.angleUnit), shift: false };
 
     case 'ok':
-      return state;
-
     case 'equals':
       return evaluateInput(state);
+
+    case 'format':
+    case 'approx':
+      return toggleResultFormat(state);
+
+    case 'off':
+      return { ...state, screen: 'off', shift: false, notice: null };
+
+    case 'variable':
+    case 'function':
+    case 'catalog':
+    case 'tools':
+    case 'xvar':
+    case 'qr':
+    case 'mixed':
+    case 'comma':
+    case 'ins':
+    case 'formatMenu':
+      return notice(state, NOTICE_TEXT[keyId] ?? 'NOT MODELLED');
+
+    case 'pageup':
+    case 'pagedown':
+      return state;
 
     case 'del':
       return edit(state, backspace);
 
     case 'left':
-      return { ...state, cursor: move(state.input, state.cursor, 'left') };
+      return { ...state, cursor: move(state.input, state.cursor, 'left'), notice: null };
     case 'right':
-      return { ...state, cursor: move(state.input, state.cursor, 'right') };
+      return { ...state, cursor: move(state.input, state.cursor, 'right'), notice: null };
     case 'up':
-      return { ...state, cursor: move(state.input, state.cursor, 'up') };
+      return { ...state, cursor: move(state.input, state.cursor, 'up'), notice: null };
     case 'down':
-      return { ...state, cursor: move(state.input, state.cursor, 'down') };
+      return { ...state, cursor: move(state.input, state.cursor, 'down'), notice: null };
 
     case 'dot':
       return edit(state, (nodes, cursor) => insertNumber(nodes, cursor, '.'));
@@ -274,6 +488,8 @@ export function press(state: CalcState, keyId: string): CalcState {
 
     case 'pi':
       return edit(state, (nodes, cursor) => insertAtom(nodes, cursor, 'π'));
+    case 'e':
+      return edit(state, (nodes, cursor) => insertAtom(nodes, cursor, 'e'));
     case 'ans':
       return edit(state, (nodes, cursor) => insertAtom(nodes, cursor, 'Ans'));
     case 'preans':

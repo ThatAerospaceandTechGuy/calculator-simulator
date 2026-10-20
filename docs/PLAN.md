@@ -175,7 +175,7 @@ This is the minimum needed for authentic editing. Function argument lists, power
 - 5×7 glyph cell with a 1-dot gap: exactly 32 small characters per line, 16 large.
 - Expression line: small glyphs, stacked fractions and radicals composed from runs.
 - Result line: large glyphs, automatically falls back to small above 16 characters.
-- Indicator row: SHIFT, angle unit, and future M/ALPHA flags.
+- Indicator row: SHIFT, MathI/O, angle unit, history and solar flags.
 - 4-gradation grey is modelled with CSS colours; per-pixel greyscale is a later upgrade.
 - No official fonts or logos. The bitmap font is the classic Adafruit GFX 5×7 face (BSD-2-Clause), with math glyph overrides for `π √ × ÷ − ² ³ °`.
 
@@ -188,22 +188,23 @@ The shell is drawn in CSS from measured proportions; it is **not** a product pho
 CW+ interaction is menu-driven. The state machine therefore models a screen stack, not just a mode enum:
 
 ```ts
-type Screen = 'calc' | 'home' | 'settings' | 'catalog' | 'dialog';
+type Screen = 'calc' | 'home' | 'off';
 ```
 
-v1 implements `calc` plus a SETTINGS shortcut for angle unit. HOME/CATALOG/dialogs are specified but deliberately stubbed until the calculation path is solid.
+v1 implements the HOME grid and the Calculate app, plus a SETTINGS shortcut for the angle unit. Statistics, Table, Ratio and Math Box are represented on HOME but deliberately stubbed. A full screen stack (`settings`, `catalog`, dialogs) remains the next step.
 
 Key semantics:
 
 - **SHIFT is a latch**, pressed once and consumed by the next key.
 - **ALPHA** (future) is a second latch; both indicators live on the LCD.
-- `=` evaluates; the expression stays visible above the result.
-- After `=`, a digit starts a new expression; an operator continues from `Ans`.
+- `EXE` evaluates; the expression stays visible above the result. `OK` has the same effect in Calculate.
+- After `EXE`, a digit starts a new expression; an operator continues from `Ans`.
 - `AC` clears input and result but keeps `Ans`, history and settings.
-- `DEL` edits; `ON` performs a full reset.
-- Arrow keys move the input cursor through nested templates.
+- `DEL` edits; `ON` powers on to HOME. `SHIFT` + `AC` powers off.
+- Arrow keys move the input cursor through nested templates, or the selection on HOME.
+- `FORMAT` toggles the current result between standard and decimal form; `SHIFT` + `7` inserts π and `SHIFT` + `8` inserts e.
 
-Physical keyboard mapping (v1): digits, `. + - * / ^ ( )`, `Enter`, `Backspace`, `Escape`, plus `s c t l n r f p a e`. `Shift` toggles the latch.
+Physical keyboard mapping (v1): digits, `. + - * / ^ ( )`, `Enter`, `Backspace`, `Escape`, `h`, `PageUp`, `PageDown`, plus `s c t l n r f p a e`. `Shift` toggles the latch.
 
 ---
 

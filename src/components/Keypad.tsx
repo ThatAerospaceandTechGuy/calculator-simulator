@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { KeySpec } from '../calculators/types';
+import { KeyIcon } from './KeyIcon';
 
 interface KeypadProps {
   keys: KeySpec[];
@@ -7,19 +8,17 @@ interface KeypadProps {
   onKey: (key: KeySpec) => void;
 }
 
-const DPAD: KeySpec[] = [
-  { id: 'up', label: 'Up', row: 0, col: 0 },
-  { id: 'left', label: 'Left', row: 0, col: 0 },
-  { id: 'ok', label: 'OK', row: 0, col: 0 },
-  { id: 'right', label: 'Right', row: 0, col: 0 },
-  { id: 'down', label: 'Down', row: 0, col: 0 },
-];
-
 function placement(key: KeySpec): CSSProperties {
   return {
     gridRow: `${key.row + 1} / span ${key.rowSpan ?? 1}`,
     gridColumn: `${key.col + 1} / span ${key.span ?? 1}`,
   };
+}
+
+function accessibleName(keySpec: KeySpec): string {
+  if (keySpec.ariaLabel) return keySpec.ariaLabel;
+  const above = keySpec.caption ?? keySpec.shiftLabel;
+  return [above, keySpec.label].filter(Boolean).join(' ') || keySpec.id;
 }
 
 function KeyButton({
@@ -32,44 +31,60 @@ function KeyButton({
   onKey: (key: KeySpec) => void;
 }) {
   const tone = keySpec.tone ?? 'function';
-  const label = keySpec.shiftLabel ? `${keySpec.label}, shift: ${keySpec.shiftLabel}` : keySpec.label;
+  const above = keySpec.caption ?? keySpec.shiftLabel;
+  const aboveTone = keySpec.caption ? (keySpec.captionTone ?? 'light') : 'blue';
+  const iconOnly = Boolean(keySpec.icon) && !keySpec.label;
+  const latched = keySpec.id === 'shift' && shift;
+  const roundTop = ['variable', 'function', 'catalog', 'tools'].includes(keySpec.id);
 
   return (
-    <button
-      type="button"
-      className={`key key-${tone}${keySpec.shiftLabel ? ' has-shift' : ''}${
-        keySpec.id === 'shift' && shift ? ' is-latched' : ''
+    <div
+      className={`key-slot key-slot-${tone}${above ? ' has-above' : ''}${
+        iconOnly ? ' is-icon-only' : ''
       }`}
       style={placement(keySpec)}
-      onClick={() => onKey(keySpec)}
-      aria-label={label}
-      aria-pressed={keySpec.id === 'shift' ? shift : undefined}
     >
-      {keySpec.shiftLabel ? <span className="key-shift-label">{keySpec.shiftLabel}</span> : null}
-      <span className="key-label">{keySpec.label}</span>
-    </button>
+      {above ? <span className={`key-above key-above-${aboveTone}`}>{above}</span> : null}
+      <button
+        type="button"
+        className={`key key-${tone} key-${keySpec.id}${keySpec.small ? ' key-small' : ''}${
+          roundTop ? ' key-top-round' : ''
+        }${latched ? ' is-latched' : ''}`}
+        onClick={() => onKey(keySpec)}
+        aria-label={accessibleName(keySpec)}
+        aria-pressed={keySpec.id === 'shift' ? shift : undefined}
+      >
+        {keySpec.icon ? <KeyIcon name={keySpec.icon} /> : null}
+        {keySpec.label ? <span className="key-label">{keySpec.label}</span> : null}
+      </button>
+    </div>
   );
 }
 
-function Dpad({ onKey }: { onKey: (key: KeySpec) => void }) {
-  const get = (id: string) => DPAD.find((key) => key.id === id) as KeySpec;
+function Rocker({ keySpec, onKey }: { keySpec: KeySpec; onKey: (key: KeySpec) => void }) {
   return (
-    <div className="dpad" style={{ gridRow: '1 / span 2', gridColumn: '2 / span 3' }}>
-      <button type="button" className="dpad-key dpad-up" onClick={() => onKey(get('up'))} aria-label="Up">
-        ▲
-      </button>
-      <button type="button" className="dpad-key dpad-left" onClick={() => onKey(get('left'))} aria-label="Left">
-        ◀
-      </button>
-      <button type="button" className="dpad-key dpad-ok" onClick={() => onKey(get('ok'))} aria-label="OK">
-        OK
-      </button>
-      <button type="button" className="dpad-key dpad-right" onClick={() => onKey(get('right'))} aria-label="Right">
-        ▶
-      </button>
-      <button type="button" className="dpad-key dpad-down" onClick={() => onKey(get('down'))} aria-label="Down">
-        ▼
-      </button>
+    <div className="key-slot key-slot-rocker" style={placement(keySpec)}>
+      <div className="key-rocker" role="group" aria-label="Page scroll">
+        <button
+          type="button"
+          className="rocker-key rocker-up"
+          onClick={() => onKey({ ...keySpec, id: 'pageup', kind: 'key', label: '', icon: 'chevrons-up' })}
+          aria-label="Page up"
+        >
+          <KeyIcon name="chevrons-up" />
+        </button>
+        <span className="rocker-divider" aria-hidden="true" />
+        <button
+          type="button"
+          className="rocker-key rocker-down"
+          onClick={() =>
+            onKey({ ...keySpec, id: 'pagedown', kind: 'key', label: '', icon: 'chevrons-down' })
+          }
+          aria-label="Page down"
+        >
+          <KeyIcon name="chevrons-down" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -78,8 +93,8 @@ export function Keypad({ keys, shift, onKey }: KeypadProps) {
   return (
     <div className="keypad">
       {keys.map((keySpec) =>
-        keySpec.kind === 'dpad' ? (
-          <Dpad key={keySpec.id} onKey={onKey} />
+        keySpec.kind === 'rocker' ? (
+          <Rocker key={keySpec.id} keySpec={keySpec} onKey={onKey} />
         ) : (
           <KeyButton key={keySpec.id} keySpec={keySpec} shift={shift} onKey={onKey} />
         ),

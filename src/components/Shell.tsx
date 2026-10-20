@@ -10,7 +10,8 @@ interface ShellProps {
   onKey: (key: KeySpec) => void;
 }
 
-type ShellStyle = CSSProperties & Record<'--body-top' | '--body-bottom' | '--accent', string>;
+type ShellStyle = CSSProperties &
+  Record<'--body-top' | '--body-bottom' | '--accent', string>;
 
 export function Shell({ spec, state, onKey }: ShellProps) {
   const style: ShellStyle = {
@@ -20,22 +21,41 @@ export function Shell({ spec, state, onKey }: ShellProps) {
   };
 
   return (
-    <div className="calculator" style={style}>
-      <div className="calculator-head">
-        <span className="calculator-brand">{spec.brand}</span>
-        <span className="calculator-model">{spec.model}</span>
+    <div
+      className="calculator"
+      style={style}
+      data-model={spec.id}
+      data-solar={spec.shell.solar ? 'true' : 'false'}
+      role="group"
+      aria-label={`${spec.label} simulator`}
+    >
+      <div className="calc-topline">
+        <div className="calc-identity">
+          <span className="casio-wordmark">CASIO</span>
+          <span className="calc-model">{spec.model}</span>
+          <span className="calc-edition">{spec.shell.edition}</span>
+        </div>
+
+        {spec.shell.solar ? (
+          <span className="solar-panel" aria-label="Solar panel">
+            {Array.from({ length: 6 }, (_, index) => (
+              <span key={index} className="solar-cell" />
+            ))}
+          </span>
+        ) : (
+          <span className="calc-top-spacer" aria-hidden="true" />
+        )}
       </div>
 
-      <div className="calculator-display">
-        <Display state={state} />
+      <div className="display-bezel">
+        <Display state={state} solar={spec.shell.solar} />
+      </div>
+
+      <div className="display-footer">
+        <span className="classwiz-wordmark">{spec.shell.label}</span>
       </div>
 
       <Keypad keys={spec.keys} shift={state.shift} onKey={onKey} />
-
-      <div className="calculator-foot">
-        {spec.shell.solar ? <span className="solar-panel" aria-hidden="true" /> : <span />}
-        <span className="calculator-family">{spec.shell.label}</span>
-      </div>
     </div>
   );
 }

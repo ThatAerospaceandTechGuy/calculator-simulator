@@ -90,4 +90,52 @@ describe('calculator state machine', () => {
     expect(state.result).toBeNull();
     expect(state.error).toBeNull();
   });
+
+  it('starts on the HOME grid and launches the selected app', () => {
+    let state = createState();
+    expect(state.screen).toBe('home');
+    expect(state.homeIndex).toBe(0);
+
+    state = press(state, 'right');
+    expect(state.homeIndex).toBe(1);
+    state = press(state, 'ok');
+    expect(state.screen).toBe('home');
+    expect(state.notice).toContain('STATISTICS');
+
+    state = press(state, 'left');
+    state = press(state, 'ok');
+    expect(state.screen).toBe('calc');
+  });
+
+  it('starts Calculate when a digit is pressed from HOME', () => {
+    const state = run(['2', 'add', '2', 'equals']);
+    expect(state.screen).toBe('calc');
+    expect(state.result).toBe('4');
+  });
+
+  it('toggles a result between fraction and decimal with FORMAT', () => {
+    let state = run(['1', 'div', '3', 'equals']);
+    expect(state.result).toBe('1/3');
+    state = press(state, 'format');
+    expect(state.result).toBe('0.3333333333');
+    state = press(state, 'format');
+    expect(state.result).toBe('1/3');
+  });
+
+  it('inserts pi with SHIFT and 7', () => {
+    let state = press(createState(), 'shift');
+    state = pressKey(state, { id: '7', shiftId: 'pi' });
+    state = press(state, 'equals');
+    expect(state.result).toBe('π');
+  });
+
+  it('powers off with SHIFT + AC and wakes with ON', () => {
+    let state = press(createState(), 'shift');
+    state = pressKey(state, { id: 'ac', shiftId: 'off' });
+    expect(state.screen).toBe('off');
+    state = press(state, '2');
+    expect(state.screen).toBe('off');
+    state = press(state, 'on');
+    expect(state.screen).toBe('home');
+  });
 });

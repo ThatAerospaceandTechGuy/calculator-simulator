@@ -15,17 +15,25 @@ function MiniCalc({ spec }: { spec: CalculatorSpec }) {
       }
       aria-hidden="true"
     >
-      <span className="mini-brand">{spec.brand}</span>
+      <span className="mini-topline">
+        <span className="mini-brand">CASIO</span>
+        {spec.shell.solar ? <span className="mini-solar" /> : null}
+      </span>
+      <span className="mini-model">{spec.model}</span>
       <span className="mini-screen">
         <span className="mini-expr">12+3</span>
         <span className="mini-result">15</span>
       </span>
+      <span className="mini-classwiz">{spec.shell.label}</span>
       <span className="mini-keys">
-        {Array.from({ length: 12 }, (_, i) => (
-          <span key={i} className={i === 11 ? 'mini-key mini-equals' : 'mini-key'} />
-        ))}
+        {Array.from({ length: 36 }, (_, i) => {
+          const classes = ['mini-key'];
+          if (i < 18) classes.push('mini-key-dark');
+          if (i === 8) classes.push('mini-key-ok');
+          if (i === 12) classes.push('mini-key-shift');
+          return <span key={i} className={classes.join(' ')} />;
+        })}
       </span>
-      {spec.shell.solar ? <span className="mini-solar" /> : null}
     </span>
   );
 }

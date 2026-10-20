@@ -32,6 +32,9 @@ const KEYBOARD_MAP: Record<string, string> = {
   ArrowRight: 'right',
   ArrowUp: 'up',
   ArrowDown: 'down',
+  PageUp: 'pageup',
+  PageDown: 'pagedown',
+  h: 'home',
   s: 'sin',
   c: 'cos',
   t: 'tan',
@@ -71,7 +74,9 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
 
       event.preventDefault();
       const keySpec = spec.keys.find((key) => key.id === id);
-      setState((previous) => (keySpec ? pressKey(previous, keySpec) : press(previous, id)));
+      setState((previous) =>
+        keySpec ? pressKey(previous, keySpec) : press({ ...previous, shift: false }, id),
+      );
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -107,9 +112,15 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
         <div className="sim-stage">
           <Shell spec={spec} state={state} onKey={handleKey} />
           <p className="sim-hint">
-            {state.shift ? (
+            {state.screen === 'off' ? (
+              <span className="hint-active">The calculator is off. Press ON to wake it.</span>
+            ) : state.screen === 'home' ? (
+              <>
+                HOME screen. Use the arrows and <kbd>OK</kbd>, or just start typing a calculation.
+              </>
+            ) : state.shift ? (
               <span className="hint-active">
-                SHIFT is latched — the next key uses its orange function.
+                SHIFT is latched — the next key uses its blue function.
               </span>
             ) : (
               <>
@@ -123,7 +134,7 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
           <section className="side-card">
             <h2>History</h2>
             {state.history.length === 0 ? (
-              <p className="muted">Results appear here after you press =.</p>
+              <p className="muted">Results appear here after you press EXE.</p>
             ) : (
               <ol className="history-list">
                 {[...state.history].reverse().map((entry, index) => (
@@ -140,9 +151,10 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
             <h2>Keyboard</h2>
             <dl className="keymap">
               <div><dt>0–9 . + −</dt><dd>number keys</dd></div>
-              <div><dt>Enter</dt><dd>=</dd></div>
+              <div><dt>Enter</dt><dd>EXE</dd></div>
               <div><dt>Backspace</dt><dd>DEL</dd></div>
               <div><dt>Esc</dt><dd>AC</dd></div>
+              <div><dt>h</dt><dd>HOME</dd></div>
               <div><dt>s c t</dt><dd>sin, cos, tan</dd></div>
               <div><dt>l n</dt><dd>log, ln</dd></div>
               <div><dt>r f p</dt><dd>√, fraction, π</dd></div>
@@ -159,13 +171,13 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
                 : 'Battery-only sibling of the fx-85GT CW+.'}
             </p>
             <p className="muted">
-              Menus, statistics and table apps are not modelled yet. Calculations, fractions, surds and
-              standard-angle trig are.
+              The HOME menu and Calculate app are modelled. Statistics, Table, Ratio and Math Box
+              are visible but stubbed. Fractions, surds and standard-angle trig are exact.
             </p>
             <button
               type="button"
               className="ghost-button"
-              onClick={() => setState((previous) => press(previous, 'on'))}
+              onClick={() => setState(createState())}
             >
               Reset calculator
             </button>

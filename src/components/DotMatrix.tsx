@@ -29,6 +29,7 @@ export function DotMatrix({ text, scale = 1, className, label }: DotMatrixProps)
       aria-label={label}
       aria-hidden={label ? undefined : true}
       focusable="false"
+      fill="currentColor"
     >
       {characters.map((character, charIndex) => {
         const rows = glyph(character);
