@@ -235,10 +235,12 @@ describe('calculator state machine', () => {
     state = press(state, 'right');
     expect(state.homeIndex).toBe(1);
     state = press(state, 'ok');
-    expect(state.screen).toBe('home');
-    expect(state.notice).toContain('STATISTICS');
+    expect(state.screen).toBe('stat');
 
+    state = press(state, 'back');
+    expect(state.screen).toBe('home');
     state = press(state, 'left');
+    expect(state.homeIndex).toBe(0);
     state = press(state, 'ok');
     expect(state.screen).toBe('calc');
   });

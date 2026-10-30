@@ -29,11 +29,60 @@ import {
   type MenuPage,
 } from './settings';
 
-export type Screen = 'calc' | 'home' | 'off' | 'menu';
+export type Screen = 'calc' | 'home' | 'off' | 'menu' | 'stat' | 'table' | 'ratio' | 'mathbox';
 
 export interface HistoryEntry {
   input: string;
   result: string;
+}
+
+export interface StatColumn {
+  /** Raw entered values as strings (preserves input formatting). */
+  values: string[];
+  /** Parsed numeric values. */
+  nums: number[];
+}
+
+export interface StatState {
+  mode: '1-VAR' | '2-VAR';
+  /** Column 0 = X, column 1 = Y (for 2-VAR). */
+  columns: StatColumn[];
+  /** Currently focused column (0 = X, 1 = Y). */
+  focusCol: number;
+  /** Currently focused row. */
+  focusRow: number;
+  /** Computed results, or null until calculated. */
+  results: Record<string, string> | null;
+  /** 'data' = entering data, 'results' = viewing results. */
+  view: 'data' | 'results';
+}
+
+export interface TableState {
+  /** Function expression as text (e.g. "2x+1"). */
+  func: string;
+  /** Range values. */
+  start: number;
+  end: number;
+  step: number;
+  /** Computed rows, or null until generated. */
+  rows: { x: string; y: string }[] | null;
+  /** 'input' = entering params, 'results' = viewing table. */
+  view: 'input' | 'results';
+}
+
+export interface RatioState {
+  a: string;
+  b: string;
+  /** Which field is focused: 'a' or 'b'. */
+  focus: 'a' | 'b';
+  result: string | null;
+  view: 'input' | 'result';
+}
+
+export interface MathBoxState {
+  tool: string | null;
+  input: string;
+  result: string | null;
 }
 
 export interface CalcState {
@@ -53,6 +102,11 @@ export interface CalcState {
   menuPage: MenuPage;
   menuIndex: number;
   menuReturn: 'calc' | 'home';
+  // App-specific state (only one is active at a time, determined by `screen`).
+  stat: StatState;
+  table: TableState;
+  ratio: RatioState;
+  mathbox: MathBoxState;
 }
 
 const HOME_APPS = ['Calculate', 'Statistics', 'Table', 'Ratio', 'Math Box'];
@@ -75,6 +129,24 @@ export function createState(): CalcState {
     menuPage: 'settingsRoot',
     menuIndex: 0,
     menuReturn: 'home',
+    stat: {
+      mode: '1-VAR',
+      columns: [{ values: [], nums: [] }, { values: [], nums: [] }],
+      focusCol: 0,
+      focusRow: 0,
+      results: null,
+      view: 'data',
+    },
+    table: {
+      func: '',
+      start: 1,
+      end: 10,
+      step: 1,
+      rows: null,
+      view: 'input',
+    },
+    ratio: { a: '', b: '', focus: 'a', result: null, view: 'input' },
+    mathbox: { tool: null, input: '', result: null },
   };
 }
 
@@ -493,6 +565,10 @@ function pressMenu(state: CalcState, keyId: string): CalcState {
         settings: state.settings,
         ans: state.ans,
         history: state.history,
+        stat: createState().stat,
+        table: createState().table,
+        ratio: createState().ratio,
+        mathbox: createState().mathbox,
       };
     case 'off':
       return { ...state, screen: 'off', notice: null, shift: false };
@@ -520,13 +596,22 @@ function moveHome(index: number, keyId: string): number {
   }
 }
 
-/** Launch the selected HOME app. Only the Calculate app is implemented. */
+/** Launch the selected HOME app. */
 function launchHome(state: CalcState): CalcState {
-  if (state.homeIndex === 0) {
-    return { ...state, screen: 'calc', notice: null, shift: false };
+  switch (state.homeIndex) {
+    case 0:
+      return { ...state, screen: 'calc', notice: null, shift: false };
+    case 1:
+      return { ...state, screen: 'stat', notice: null, shift: false, stat: { ...state.stat, view: 'data' } };
+    case 2:
+      return { ...state, screen: 'table', notice: null, shift: false, table: { ...state.table, view: 'input' } };
+    case 3:
+      return { ...state, screen: 'ratio', notice: null, shift: false, ratio: { ...state.ratio, view: 'input' } };
+    case 4:
+      return { ...state, screen: 'mathbox', notice: null, shift: false, mathbox: { ...state.mathbox } };
+    default:
+      return state;
   }
-  const app = HOME_APPS[state.homeIndex] ?? 'APP';
-  return notice(state, `${app.toUpperCase()} NOT MODELLED`);
 }
 
 export function press(state: CalcState, keyId: string): CalcState {
@@ -549,6 +634,11 @@ export function press(state: CalcState, keyId: string): CalcState {
   // Menus are modal: keys navigate the menu rather than editing the calculation.
   if (state.screen === 'menu') {
     return pressMenu(state, keyId);
+  }
+
+  // App screens (Statistics, Table, Ratio, Math Box) have dedicated key handling.
+  if (state.screen === 'stat' || state.screen === 'table' || state.screen === 'ratio' || state.screen === 'mathbox') {
+    return pressApp(state, keyId);
   }
 
   // Any calculation key starts the Calculate app from HOME.
@@ -655,6 +745,10 @@ export function press(state: CalcState, keyId: string): CalcState {
         settings: state.settings,
         ans: state.ans,
         history: state.history,
+        stat: createState().stat,
+        table: createState().table,
+        ratio: createState().ratio,
+        mathbox: createState().mathbox,
       };
 
     case 'home':
@@ -810,6 +904,490 @@ export function press(state: CalcState, keyId: string): CalcState {
       if (/^[0-9]$/.test(keyId)) {
         return edit(state, (nodes, cursor) => insertNumber(nodes, cursor, keyId));
       }
+      return state;
+  }
+}
+
+/**
+ * Key handling for app screens: Statistics, Table, Ratio, Math Box.
+ * Each app has its own mini state machine for input vs. results viewing.
+ */
+function pressApp(state: CalcState, keyId: string): CalcState {
+  // Common keys across all apps.
+  if (keyId === 'ac' || keyId === 'back') {
+    return { ...state, screen: 'home', notice: null, shift: false };
+  }
+  if (keyId === 'home') return { ...state, screen: 'home', notice: null, shift: false };
+  if (keyId === 'on') {
+    return {
+      ...createState(),
+      settings: state.settings,
+      ans: state.ans,
+      history: state.history,
+    };
+  }
+  if (keyId === 'off') return { ...state, screen: 'off', notice: null, shift: false };
+  if (keyId === 'shift') return { ...state, shift: !state.shift };
+
+  // ------------------------------------------------------------------
+  // Statistics
+  // ------------------------------------------------------------------
+  if (state.screen === 'stat') {
+    return pressStat(state, keyId);
+  }
+  // ------------------------------------------------------------------
+  // Table
+  // ------------------------------------------------------------------
+  if (state.screen === 'table') {
+    return pressTable(state, keyId);
+  }
+  // ------------------------------------------------------------------
+  // Ratio
+  // ------------------------------------------------------------------
+  if (state.screen === 'ratio') {
+    return pressRatio(state, keyId);
+  }
+  // ------------------------------------------------------------------
+  // Math Box
+  // ------------------------------------------------------------------
+  if (state.screen === 'mathbox') {
+    return pressMathBox(state, keyId);
+  }
+  return state;
+}
+
+/** ---------- Statistics ---------- */
+
+function pressStat(state: CalcState, keyId: string): CalcState {
+  const s = state.stat;
+
+  // Results view: navigate results, any key goes back to data entry.
+  if (s.view === 'results') {
+    if (keyId === 'up' || keyId === 'down' || keyId === 'left' || keyId === 'right') {
+      return { ...state, stat: { ...s, view: 'data' } };
+    }
+    if (keyId === 'ok' || keyId === 'equals') {
+      return { ...state, stat: { ...s, view: 'data' } };
+    }
+    return state;
+  }
+
+  // Data entry view.
+  const col = s.columns[s.focusCol];
+  const currentVal = col.values[s.focusRow] ?? '';
+
+  switch (keyId) {
+    case 'up':
+      return {
+        ...state,
+        stat: { ...s, focusRow: Math.max(0, s.focusRow - 1) },
+      };
+    case 'down':
+      return {
+        ...state,
+        stat: { ...s, focusRow: s.focusRow + 1 },
+      };
+    case 'left':
+      return {
+        ...state,
+        stat: { ...s, focusCol: s.focusCol === 0 ? (s.mode === '2-VAR' ? 1 : 0) : 0 },
+      };
+    case 'right':
+      return {
+        ...state,
+        stat: { ...s, focusCol: s.focusCol === 0 ? 1 : 0 },
+      };
+    case 'ok':
+    case 'equals':
+      // If current cell is empty but data exists elsewhere, compute results.
+      const hasData = s.columns.some((c) => c.nums.some((v) => !Number.isNaN(v)));
+      if (currentVal === '' && hasData && !s.results) {
+        return {
+          ...state,
+          stat: { ...s, results: computeStatResults(s), view: 'results' },
+        };
+      }
+      // Commit current cell and move down.
+      if (currentVal !== '') {
+        const nums = [...col.nums];
+        const values = [...col.values];
+        const parsed = Number(currentVal);
+        if (!Number.isNaN(parsed)) {
+          nums[s.focusRow] = parsed;
+          values[s.focusRow] = currentVal;
+        }
+        return {
+          ...state,
+          stat: {
+            ...s,
+            columns: s.columns.map((c, i) =>
+              i === s.focusCol ? { values, nums } : c
+            ),
+            focusRow: s.focusRow + 1,
+            results: null,
+          },
+        };
+      }
+      return state;
+    case 'del':
+      // Delete current cell.
+      return {
+        ...state,
+        stat: {
+          ...s,
+          columns: s.columns.map((c, i) => {
+            if (i !== s.focusCol) return c;
+            const values = c.values.filter((_, idx) => idx !== s.focusRow);
+            const nums = c.nums.filter((_, idx) => idx !== s.focusRow);
+            return { values, nums };
+          }),
+          focusRow: Math.max(0, s.focusRow - 1),
+          results: null,
+        },
+      };
+    default:
+      if (/^[0-9]$/.test(keyId) || keyId === 'dot' || keyId === 'neg') {
+        const ch = keyId === 'dot' ? '.' : keyId === 'neg' ? '-' : keyId;
+        const newText = currentVal + ch;
+        // Validate it's a parseable number (allow incomplete).
+        if (newText !== '' && newText !== '.' && newText !== '-' && newText !== '-.') {
+          const parsed = Number(newText);
+          if (Number.isNaN(parsed)) return state;
+        }
+        const values = [...col.values];
+        const nums = [...col.nums];
+        values[s.focusRow] = newText;
+        nums[s.focusRow] = Number(newText);
+        return {
+          ...state,
+          stat: {
+            ...s,
+            columns: s.columns.map((c, i) =>
+              i === s.focusCol ? { values, nums } : c
+            ),
+            results: null,
+          },
+        };
+      }
+      return state;
+  }
+}
+
+function computeStatResults(s: StatState): Record<string, string> {
+  const results: Record<string, string> = {};
+  const x = s.columns[0].nums.filter((v) => !Number.isNaN(v));
+  const n = x.length;
+  if (n === 0) return results;
+
+  const sumX = x.reduce((a, b) => a + b, 0);
+  const meanX = sumX / n;
+  const sumX2 = x.reduce((a, v) => a + v * v, 0);
+  const variancePop = sumX2 / n - meanX * meanX;
+  const sdPop = Math.sqrt(Math.max(0, variancePop));
+  const sdSample = n > 1 ? Math.sqrt(Math.max(0, (sumX2 - n * meanX * meanX) / (n - 1))) : 0;
+  const minX = Math.min(...x);
+  const maxX = Math.max(...x);
+
+  results['n'] = String(n);
+  results['x̄'] = meanX.toString();
+  results['Σx'] = sumX.toString();
+  results['Σx²'] = sumX2.toString();
+  results['σn'] = sdPop.toString();
+  results['σn-1'] = sdSample.toString();
+  results['minX'] = minX.toString();
+  results['maxX'] = maxX.toString();
+
+  if (s.mode === '2-VAR') {
+    const y = s.columns[1].nums.filter((v) => !Number.isNaN(v));
+    const m = Math.min(n, y.length);
+    if (m > 0) {
+      const sumY = y.slice(0, m).reduce((a, b) => a + b, 0);
+      const meanY = sumY / m;
+      const sumY2 = y.slice(0, m).reduce((a, v) => a + v * v, 0);
+      const sumXY = x.slice(0, m).reduce((a, v, i) => a + v * y[i], 0);
+      const sdYPop = Math.sqrt(Math.max(0, sumY2 / m - meanY * meanY));
+      const sdYSample = m > 1 ? Math.sqrt(Math.max(0, (sumY2 - m * meanY * meanY) / (m - 1))) : 0;
+      const covariance = sumXY / m - meanX * meanY;
+      const r =
+        sdPop > 0 && sdYPop > 0 ? covariance / (sdPop * sdYPop) : 0;
+      const b = sdPop > 0 ? (r * sdYPop) / sdPop : 0;
+      const a = meanY - b * meanX;
+
+      results['ȳ'] = meanY.toString();
+      results['Σy'] = sumY.toString();
+      results['Σy²'] = sumY2.toString();
+      results['Σxy'] = sumXY.toString();
+      results['σn-y'] = sdYPop.toString();
+      results['σn-1-y'] = sdYSample.toString();
+      results['r'] = r.toString();
+      results['A'] = a.toString();   // regression intercept
+      results['B'] = b.toString();   // regression slope
+    }
+  }
+
+  return results;
+}
+
+/** ---------- Table ---------- */
+
+function pressTable(state: CalcState, keyId: string): CalcState {
+  const t = state.table;
+
+  if (t.view === 'results') {
+    if (keyId === 'up' || keyId === 'down' || keyId === 'left' || keyId === 'right') {
+      return { ...state, table: { ...t, view: 'input' } };
+    }
+    if (keyId === 'ok' || keyId === 'equals') {
+      return { ...state, table: { ...t, view: 'input' } };
+    }
+    return state;
+  }
+
+  // Input view: all numeric input goes to func; arrows toggle to results if table exists.
+
+  switch (keyId) {
+    case 'left':
+    case 'right':
+    case 'up':
+    case 'down':
+      // Toggle between input and results if table exists.
+      if (t.rows) {
+        return { ...state, table: { ...t, view: 'results' } };
+      }
+      return state;
+    case 'ok':
+    case 'equals':
+      return generateTable(state);
+    case 'del':
+      return {
+        ...state,
+        table: { ...t, func: t.func.slice(0, -1), rows: null },
+      };
+    default:
+      if (/^[0-9]$/.test(keyId) || keyId === 'dot' || keyId === 'neg') {
+        const ch = keyId === 'dot' ? '.' : keyId === 'neg' ? '-' : keyId;
+        return {
+          ...state,
+          table: { ...t, func: t.func + ch, rows: null },
+        };
+      }
+      // Support variable x and basic operators.
+      if (keyId === 'xvar') {
+        return { ...state, table: { ...t, func: t.func + 'x', rows: null } };
+      }
+      if (['add', 'sub', 'mul', 'div', 'pow', 'lparen', 'rparen'].includes(keyId)) {
+        const opMap: Record<string, string> = {
+          add: '+', sub: '-', mul: '*', div: '/', pow: '^',
+          lparen: '(', rparen: ')',
+        };
+        return {
+          ...state,
+          table: { ...t, func: t.func + opMap[keyId], rows: null },
+        };
+      }
+      return state;
+  }
+}
+
+function generateTable(state: CalcState): CalcState {
+  const t = state.table;
+  if (!t.func.trim()) return state;
+
+  const start = t.start;
+  const end = t.end;
+  const step = t.step || 1;
+  if (step === 0) return state;
+
+  const rows: { x: string; y: string }[] = [];
+
+  for (let x = start; step > 0 ? x <= end : x >= end; x += step) {
+    // Substitute x with its numeric value, then parse & evaluate.
+    const exprSource = t.func.replace(/x/g, `(${x})`);
+    try {
+      const ast = parse(autoCloseParentheses(exprSource));
+      const value = evaluate(ast, {
+        ans: state.ans,
+        preAns: state.preAns,
+        angleUnit: state.settings.angleUnit,
+      });
+      const y = formatValue(value, {
+        decimalMark: 'dot',
+        digitSeparator: false,
+        fractionResult: 'improper',
+        numberFormat: 'norm2',
+      });
+      rows.push({ x: x.toString(), y });
+    } catch {
+      rows.push({ x: x.toString(), y: 'ERROR' });
+    }
+  }
+
+  return {
+    ...state,
+    table: { ...t, rows, view: 'results' },
+  };
+}
+
+/** ---------- Ratio ---------- */
+
+function pressRatio(state: CalcState, keyId: string): CalcState {
+  const r = state.ratio;
+
+  if (r.view === 'result') {
+    if (keyId === 'up' || keyId === 'down' || keyId === 'left' || keyId === 'right') {
+      return { ...state, ratio: { ...r, view: 'input' } };
+    }
+    if (keyId === 'ok' || keyId === 'equals') {
+      return { ...state, ratio: { ...r, view: 'input' } };
+    }
+    return state;
+  }
+
+  switch (keyId) {
+    case 'left':
+      return { ...state, ratio: { ...r, focus: 'a' } };
+    case 'right':
+      return { ...state, ratio: { ...r, focus: 'b' } };
+    case 'ok':
+    case 'equals':
+      return computeRatio(state);
+    case 'del':
+      return {
+        ...state,
+        ratio: {
+          ...r,
+          a: r.focus === 'a' ? r.a.slice(0, -1) : r.a,
+          b: r.focus === 'b' ? r.b.slice(0, -1) : r.b,
+          result: null,
+        },
+      };
+    default:
+      if (/^[0-9]$/.test(keyId)) {
+        return {
+          ...state,
+          ratio: {
+            ...r,
+            [r.focus]: r[r.focus] + keyId,
+            result: null,
+          },
+        };
+      }
+      return state;
+  }
+}
+
+function computeRatio(state: CalcState): CalcState {
+  const r = state.ratio;
+  const a = Number(r.a);
+  const b = Number(r.b);
+  if (Number.isNaN(a) || Number.isNaN(b) || b === 0) return state;
+
+  const g = gcdBigInt(BigInt(Math.round(Math.abs(a))), BigInt(Math.round(Math.abs(b))));
+  const simplifiedA = a / Number(g);
+  const simplifiedB = b / Number(g);
+  const decimal = (a / b).toString();
+
+  return {
+    ...state,
+    ratio: {
+      ...r,
+      result: `${simplifiedA}:${simplifiedB}  (= ${decimal})`,
+      view: 'result',
+    },
+  };
+}
+
+function gcdBigInt(a: bigint, b: bigint): bigint {
+  while (b !== 0n) {
+    const t = a % b;
+    a = b;
+    b = t;
+  }
+  return a;
+}
+
+/** ---------- Math Box ---------- */
+
+const MATHBOX_TOOLS = [
+  { id: 'randint', label: 'RANDOM INT' },
+  { id: 'dice', label: 'DICE (1-6)' },
+  { id: 'coin', label: 'COIN TOSS' },
+  { id: 'fact', label: 'FACTORIAL' },
+];
+
+function pressMathBox(state: CalcState, keyId: string): CalcState {
+  const m = state.mathbox;
+
+  if (!m.tool) {
+    // Tool selection view.
+    switch (keyId) {
+      case 'left':
+        return {
+          ...state,
+          mathbox: { ...m, tool: MATHBOX_TOOLS[(MATHBOX_TOOLS.length + (m.tool ? MATHBOX_TOOLS.findIndex((t) => t.id === m.tool) : 0) - 1) % MATHBOX_TOOLS.length]?.id ?? null },
+        };
+      case 'right':
+        return {
+          ...state,
+          mathbox: { ...m, tool: MATHBOX_TOOLS[( (m.tool ? MATHBOX_TOOLS.findIndex((t) => t.id === m.tool) : -1) + 1) % MATHBOX_TOOLS.length]?.id ?? null },
+        };
+      case 'ok':
+      case 'equals':
+        if (m.tool) return { ...state, mathbox: { ...m, input: '', result: null } };
+        return state;
+      default:
+        return state;
+    }
+  }
+
+  // Tool active: input view.
+  switch (keyId) {
+    case 'left':
+    case 'right':
+    case 'up':
+    case 'down':
+      return { ...state, mathbox: { ...m, tool: null } }; // back to selection
+    case 'ok':
+    case 'equals':
+      return runMathBoxTool(state);
+    case 'del':
+      return { ...state, mathbox: { ...m, input: m.input.slice(0, -1), result: null } };
+    default:
+      if (/^[0-9]$/.test(keyId) || keyId === 'dot' || keyId === 'neg') {
+        const ch = keyId === 'dot' ? '.' : keyId === 'neg' ? '-' : keyId;
+        return { ...state, mathbox: { ...m, input: m.input + ch, result: null } };
+      }
+      return state;
+  }
+}
+
+function runMathBoxTool(state: CalcState): CalcState {
+  const m = state.mathbox;
+  if (!m.tool) return state;
+
+  switch (m.tool) {
+    case 'randint': {
+      const n = Number(m.input);
+      if (Number.isNaN(n) || n < 1) return state;
+      const value = Math.floor(Math.random() * n) + 1;
+      return { ...state, mathbox: { ...m, result: String(value) } };
+    }
+    case 'dice': {
+      const value = Math.floor(Math.random() * 6) + 1;
+      return { ...state, mathbox: { ...m, result: String(value) } };
+    }
+    case 'coin': {
+      const value = Math.random() < 0.5 ? 'Heads' : 'Tails';
+      return { ...state, mathbox: { ...m, result: value } };
+    }
+    case 'fact': {
+      const n = Math.round(Number(m.input));
+      if (Number.isNaN(n) || n < 0 || n > 69) return state;
+      let result = 1n;
+      for (let i = 2n; i <= BigInt(n); i += 1n) result *= i;
+      return { ...state, mathbox: { ...m, result: result.toString() } };
+    }
+    default:
       return state;
   }
 }

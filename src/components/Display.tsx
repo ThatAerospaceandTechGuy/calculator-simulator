@@ -382,6 +382,193 @@ function CalcScreen({ state, solar }: { state: CalcState; solar: boolean }) {
   );
 }
 
+/** ---------- Statistics Screen ---------- */
+
+function StatScreen({ state }: { state: CalcState }) {
+  const s = state.stat;
+
+  if (s.view === 'results') {
+    const resultEntries = s.results ? Object.entries(s.results) : [];
+    return (
+      <div className="lcd-screen lcd-stat">
+        <div className="lcd-stat-title">
+          <Run text={s.mode === '1-VAR' ? '1-VAR STAT' : '2-VAR STAT'} />
+        </div>
+        <div className="lcd-stat-results">
+          {resultEntries.map(([key, val], i) => (
+            <div key={i} className="lcd-stat-row">
+              <Run text={key} />
+              <Run text={val} />
+            </div>
+          ))}
+        </div>
+        <div className="lcd-stat-foot">
+          <Run text="AC: BACK" />
+        </div>
+      </div>
+    );
+  }
+
+  // Data entry view
+  const xCol = s.columns[0];
+  const yCol = s.columns[1];
+
+  return (
+    <div className="lcd-screen lcd-stat">
+      <div className="lcd-stat-title">
+        <Run text={s.mode === '1-VAR' ? '1-VAR STAT' : '2-VAR STAT'} />
+      </div>
+      <div className="lcd-stat-grid">
+        <div className="lcd-stat-col">
+          <Run text="X" />
+          {xCol.values.map((v, i) => (
+            <Run key={i} text={v === '' && i === s.focusRow && s.focusCol === 0 ? '_' : v} />
+          ))}
+        </div>
+        {s.mode === '2-VAR' && (
+          <div className="lcd-stat-col">
+            <Run text="Y" />
+            {yCol.values.map((v, i) => (
+              <Run key={i} text={v === '' && i === s.focusRow && s.focusCol === 1 ? '_' : v} />
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="lcd-stat-foot">
+        <Run text="OK: CALC  AC: BACK" />
+      </div>
+    </div>
+  );
+}
+
+/** ---------- Table Screen ---------- */
+
+function TableScreen({ state }: { state: CalcState }) {
+  const t = state.table;
+
+  if (t.view === 'results') {
+    return (
+      <div className="lcd-screen lcd-table">
+        <div className="lcd-table-title">
+          <Run text="TABLE" />
+        </div>
+        <div className="lcd-table-func">
+          <Run text={`f(x) = ${t.func}`} />
+        </div>
+        <div className="lcd-table-rows">
+          {t.rows?.map((row, i) => (
+            <div key={i} className="lcd-table-row">
+              <Run text={row.x} />
+              <Run text={row.y} />
+            </div>
+          ))}
+        </div>
+        <div className="lcd-table-foot">
+          <Run text="AC: BACK" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lcd-screen lcd-table">
+      <div className="lcd-table-title">
+        <Run text="TABLE" />
+      </div>
+      <div className="lcd-table-input">
+        <Run text="f(x) =" />
+        <Run text={t.func || '_'} />
+      </div>
+      <div className="lcd-table-foot">
+        <Run text="OK: CALC  AC: BACK" />
+      </div>
+    </div>
+  );
+}
+
+/** ---------- Ratio Screen ---------- */
+
+function RatioScreen({ state }: { state: CalcState }) {
+  const r = state.ratio;
+
+  if (r.view === 'result') {
+    return (
+      <div className="lcd-screen lcd-ratio">
+        <div className="lcd-ratio-title">
+          <Run text="RATIO" />
+        </div>
+        <div className="lcd-ratio-result">
+          <Run text={r.result || ''} />
+        </div>
+        <div className="lcd-ratio-foot">
+          <Run text="AC: BACK" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lcd-screen lcd-ratio">
+      <div className="lcd-ratio-title">
+        <Run text="RATIO" />
+      </div>
+      <div className="lcd-ratio-input">
+        <Run text={r.focus === 'a' ? (r.a || '_') : r.a} />
+        <Run text=":" />
+        <Run text={r.focus === 'b' ? (r.b || '_') : r.b} />
+      </div>
+      <div className="lcd-ratio-foot">
+        <Run text="OK: CALC  AC: BACK" />
+      </div>
+    </div>
+  );
+}
+
+/** ---------- Math Box Screen ---------- */
+
+function MathBoxScreen({ state }: { state: CalcState }) {
+  const m = state.mathbox;
+
+  if (!m.tool) {
+    return (
+      <div className="lcd-screen lcd-mathbox">
+        <div className="lcd-mathbox-title">
+          <Run text="MATH BOX" />
+        </div>
+        <div className="lcd-mathbox-tools">
+          {['RANDOM INT', 'DICE 1-6', 'COIN TOSS', 'FACTORIAL'].map((label, i) => (
+            <div key={i} className="lcd-mathbox-tool">
+              <Run text={label} />
+            </div>
+          ))}
+        </div>
+        <div className="lcd-mathbox-foot">
+          <Run text="OK: SELECT  AC: BACK" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lcd-screen lcd-mathbox">
+      <div className="lcd-mathbox-title">
+        <Run text={m.tool} />
+      </div>
+      <div className="lcd-mathbox-input">
+        <Run text={m.input || '_'} />
+      </div>
+      {m.result && (
+        <div className="lcd-mathbox-result">
+          <Run text={m.result} />
+        </div>
+      )}
+      <div className="lcd-mathbox-foot">
+        <Run text="OK: CALC  AC: BACK" />
+      </div>
+    </div>
+  );
+}
+
 export function Display({ state, solar = false }: { state: CalcState; solar?: boolean }) {
   const lcdStyle = {
     filter: `contrast(${(0.94 + state.settings.contrast * 0.02).toFixed(2)})`,
@@ -431,6 +618,76 @@ export function Display({ state, solar = false }: { state: CalcState; solar?: bo
         <MenuScreen state={state} />
         <span className="sr-only" aria-live="polite">
           {announcement}
+        </span>
+      </div>
+    );
+  }
+
+  if (state.screen === 'stat') {
+    return (
+      <div
+        className="lcd"
+        role="img"
+        style={lcdStyle}
+        aria-label={`Statistics app. ${state.stat.view === 'results' ? 'Viewing results' : 'Entering data'}.`}
+      >
+        <StatScreen state={state} />
+        <span className="sr-only" aria-live="polite">
+          {state.stat.view === 'results'
+            ? `Statistics results: ${Object.entries(state.stat.results ?? {}).map(([k, v]) => `${k} ${v}`).join(', ')}`
+            : 'Statistics data entry'}
+        </span>
+      </div>
+    );
+  }
+
+  if (state.screen === 'table') {
+    return (
+      <div
+        className="lcd"
+        role="img"
+        style={lcdStyle}
+        aria-label={`Table app. ${state.table.view === 'results' ? 'Viewing table' : 'Entering function'}.`}
+      >
+        <TableScreen state={state} />
+        <span className="sr-only" aria-live="polite">
+          {state.table.view === 'results' ? 'Table results' : `Table function: ${state.table.func}`}
+        </span>
+      </div>
+    );
+  }
+
+  if (state.screen === 'ratio') {
+    return (
+      <div
+        className="lcd"
+        role="img"
+        style={lcdStyle}
+        aria-label={`Ratio app. ${state.ratio.view === 'result' ? 'Viewing result' : 'Entering ratio'}.`}
+      >
+        <RatioScreen state={state} />
+        <span className="sr-only" aria-live="polite">
+          {state.ratio.view === 'result'
+            ? `Ratio result: ${state.ratio.result}`
+            : `Ratio input: ${state.ratio.a}:${state.ratio.b}`}
+        </span>
+      </div>
+    );
+  }
+
+  if (state.screen === 'mathbox') {
+    return (
+      <div
+        className="lcd"
+        role="img"
+        style={lcdStyle}
+        aria-label={`Math Box app. ${state.mathbox.tool ?? 'Selecting tool'}.`}
+      >
+        <MathBoxScreen state={state} />
+        <span className="sr-only" aria-live="polite">
+          {state.mathbox.tool
+            ? `Math Box ${state.mathbox.tool}. Input: ${state.mathbox.input}. ${state.mathbox.result ?? ''}`
+            : 'Math Box tool selection'}
         </span>
       </div>
     );
