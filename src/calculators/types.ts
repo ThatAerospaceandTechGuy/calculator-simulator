@@ -68,5 +68,13 @@ export interface CalculatorSpec {
     height: number;
     greyLevels: number;
   };
+  /** Physical specifications used to calibrate the model's shell geometry. */
+  physical?: {
+    widthMm: number;
+    heightMm: number;
+    depthMm: number;
+    weightG: number;
+    power: string;
+  };
   keys: KeySpec[];
 }
