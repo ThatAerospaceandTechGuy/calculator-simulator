@@ -11,13 +11,14 @@ interface ShellProps {
 }
 
 type ShellStyle = CSSProperties &
-  Record<'--body-top' | '--body-bottom' | '--accent', string>;
+  Record<'--body-top' | '--body-bottom' | '--accent' | '--body-aspect', string>;
 
 export function Shell({ spec, state, onKey }: ShellProps) {
   const style: ShellStyle = {
     '--body-top': spec.shell.bodyTop,
     '--body-bottom': spec.shell.bodyBottom,
     '--accent': spec.shell.accent,
+    '--body-aspect': `${spec.physical?.widthMm ?? 77} / ${spec.physical?.heightMm ?? 162}`,
   };
 
   return (
