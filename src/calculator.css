@@ -1514,3 +1514,56 @@
     transition: none !important;
   }
 }
+
+/* fx-83GT CW+ — round, individually moulded scientific and number keys.
+   The physical handset uses circular keycaps rather than stretched pills.
+   Keep the page rocker and small navigation controls as their own shapes. */
+.calculator[data-model="casio-fx-83gt-cw-plus"] {
+  box-sizing: border-box;
+}
+
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-function > .key,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-number > .key,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-operator > .key,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-equals > .key,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-shift > .key,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-ok > .key {
+  flex: none;
+  width: 90%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  align-self: center;
+}
+
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-function,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-number,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-operator,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-equals,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-shift,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-ok {
+  justify-content: flex-end;
+}
+
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.calculator[data-model="casio-fx-83gt-cw-plus"] .key:focus-visible,
+.calculator[data-model="casio-fx-83gt-cw-plus"] .rocker-key:focus-visible {
+  outline: 2px solid #8fc4ff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-function > .key,
+  .calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-number > .key,
+  .calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-operator > .key,
+  .calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-equals > .key,
+  .calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-shift > .key,
+  .calculator[data-model="casio-fx-83gt-cw-plus"] .key-slot-ok > .key {
+    width: 88%;
+  }
+}
+
