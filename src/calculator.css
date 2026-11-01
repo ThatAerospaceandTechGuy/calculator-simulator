@@ -22,6 +22,9 @@
 
   position: relative;
   width: min(100%, 392px);
+  aspect-ratio: var(--body-aspect, 77 / 162);
+  display: flex;
+  flex-direction: column;
   padding: 0;
   border-radius: 22px;
   border: 1px solid #c9ccce;
@@ -109,6 +112,7 @@
 }
 
 .calc-topline {
+  flex: none;
   position: relative;
   z-index: 1;
   display: flex;
@@ -186,6 +190,7 @@
 }
 
 .display-bezel {
+  flex: none;
   position: relative;
   z-index: 1;
   padding: 2.3cqw;
@@ -711,6 +716,7 @@
 }
 
 .display-footer {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -732,11 +738,13 @@
 
 .keypad {
   display: grid;
+  flex: 1;
+  min-height: 0;
   grid-template-columns: repeat(30, minmax(0, 1fr));
   grid-template-rows:
-    repeat(3, 12.4cqw)
-    repeat(2, 13.6cqw)
-    repeat(4, 14.8cqw);
+    repeat(3, 12.4fr)
+    repeat(2, 13.6fr)
+    repeat(4, 14.8fr);
   column-gap: 0;
   row-gap: 1.15cqw;
   margin-top: 0.5cqw;
