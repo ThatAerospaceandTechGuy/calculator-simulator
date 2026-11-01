@@ -110,7 +110,7 @@ export function Simulator({ spec, onBack }: { spec: CalculatorSpec; onBack: () =
 
       <div className="sim-layout">
         <div className="sim-stage">
-          <Shell spec={spec} state={state} onKey={handleKey} onBack={onBack} />
+          <Shell spec={spec} state={state} onKey={handleKey} />
           <p className="sim-hint">
             {state.screen === 'off' ? (
               <span className="hint-active">The calculator is off. Press ON to wake it.</span>
