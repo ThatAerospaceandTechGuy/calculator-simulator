@@ -60,3 +60,8 @@ On-screen **SETTINGS** and **FORMAT** keys open the menus; use the arrow keys an
 
 Code: MIT (see [`LICENSE`](LICENSE)).
 Bitmap font: BSD-2-Clause, see [`NOTICE.md`](NOTICE.md).
+
+
+## Deployment
+
+The production site is hosted on Cloudflare Pages at https://calculator-simulator.pages.dev. The `main` branch is connected for automatic production deployments. Cloudflare builds the app with `npm run build` and publishes the `dist` directory.
