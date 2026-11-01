@@ -440,6 +440,15 @@ export const fx83gtCwPlus = classwiz(
   '#111213',
 );
 
+// Casio's UK product specification for the battery-powered fx-83GT CW+.
+fx83gtCwPlus.physical = {
+  widthMm: 77,
+  heightMm: 162,
+  depthMm: 13.8,
+  weightG: 100,
+  power: '1 × AAA (R03)',
+};
+
 export const fx85gtCwPlus = classwiz(
   'casio-fx-85gt-cw-plus',
   'fx-85GT CW+',
