@@ -1290,3 +1290,219 @@
     font-size: 1.8cqw;
   }
 }
+
+
+/* --------------------------------------------------------------------------
+   Front-on CW+ body refinement
+   Keep the calculator itself as the focal point: dark moulded casing,
+   restrained printed legends, recessed LCD and a correctly grouped keypad.
+   -------------------------------------------------------------------------- */
+
+.calculator {
+  width: min(100%, 432px);
+  padding: 9px 12px 13px;
+  border: 1px solid #080a0b;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.075), transparent 24%),
+    linear-gradient(180deg, #303336 0%, #202326 38%, #151719 100%);
+  box-shadow:
+    0 24px 48px rgba(0,0,0,.42),
+    0 5px 12px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.13),
+    inset 0 -2px 4px rgba(0,0,0,.48);
+}
+
+.calculator::before {
+  inset: 5px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 15px;
+}
+
+.calculator::after {
+  display: none;
+}
+
+.calc-topline {
+  min-height: 68px;
+  align-items: center;
+  padding: 9px 12px 12px;
+  background: linear-gradient(180deg, #292d30, #202326);
+  border-radius: 8px 8px 0 0;
+}
+
+.calc-identity {
+  gap: 1px;
+}
+
+.casio-wordmark {
+  color: #f1f2ef;
+  font-size: 21px;
+  letter-spacing: .12em;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+
+.calc-model {
+  margin-top: 5px;
+  color: #d2d5d1;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.calc-edition {
+  margin-top: 3px;
+  color: #929995;
+  font-size: 7px;
+  letter-spacing: .08em;
+}
+
+.solar-panel {
+  width: 26cqw;
+  height: 7cqw;
+  padding: .55cqw;
+  border-color: #111a22;
+  background: #101820;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.08);
+}
+
+.solar-cell {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.22), transparent 40%),
+    repeating-linear-gradient(90deg, #24435d 0 5px, #142b40 5px 6px);
+}
+
+.calc-top-spacer {
+  width: 26cqw;
+  height: 7cqw;
+}
+
+.display-bezel {
+  margin: 0 1.4cqw;
+  padding: 2.1cqw;
+  border: 1px solid #0d0f10;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #111416, #303437 18%, #202427 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,.78),
+    0 1px 0 rgba(255,255,255,.12);
+}
+
+.lcd {
+  border-radius: 2px;
+  background:
+    linear-gradient(155deg, rgba(255,255,255,.2), transparent 34%),
+    linear-gradient(180deg, #cbd3c6, #b9c3b4);
+  box-shadow:
+    inset 0 0 0 1px rgba(20,34,22,.45),
+    inset 0 2px 6px rgba(20,34,22,.24);
+}
+
+.display-footer {
+  min-height: 22px;
+  padding: 5px 12px 4px;
+  background: transparent;
+  border: 0;
+}
+
+.classwiz-wordmark {
+  color: #aeb4b0;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .34em;
+  text-shadow: 0 1px 1px rgba(0,0,0,.65);
+}
+
+.keypad {
+  margin-top: 1.1cqw;
+  padding: 1cqw 1.2cqw 1.4cqw;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.04));
+  row-gap: 1.05cqw;
+}
+
+.key-above-light {
+  color: #d7dcd8;
+  text-shadow: 0 1px 1px rgba(0,0,0,.65);
+}
+
+.key-above-blue {
+  color: #75a9e2;
+  text-shadow: 0 1px 1px rgba(0,0,0,.7);
+}
+
+.key {
+  box-shadow:
+    0 .55cqw 0 var(--key-light-edge),
+    0 .8cqw 1cqw rgba(0,0,0,.34),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 0 -1px 1px rgba(0,0,0,.12);
+}
+
+.key-control {
+  background: linear-gradient(180deg, #e8e9e5, #c9cbc6 72%, #b9bbb6);
+}
+
+.key-ok {
+  background: linear-gradient(180deg, #39865b, #246b43 65%, #185333);
+}
+
+.key-shift {
+  background: linear-gradient(180deg, #3d80c6, #2865a5 65%, #1d4d80);
+}
+
+.key-ac {
+  background: linear-gradient(180deg, #d85b62, #b62f39 68%, #8f252d);
+}
+
+.key-rocker {
+  background: linear-gradient(180deg, #e8e9e5, #c9cbc6);
+}
+
+@media (min-width: 961px) {
+  .sim-stage {
+    padding-top: 2px;
+  }
+
+  .sim-layout {
+    grid-template-columns: minmax(432px, 1fr) 280px;
+    gap: 34px;
+  }
+
+  .calculator {
+    width: min(100%, 432px);
+  }
+}
+
+@media (max-width: 640px) {
+  .calculator {
+    width: min(100%, 432px);
+    padding: 8px 9px 11px;
+    border-radius: 17px;
+  }
+
+  .calculator::before {
+    inset: 4px;
+    border-radius: 13px;
+  }
+
+  .calc-topline {
+    min-height: 60px;
+    padding: 8px 9px 10px;
+  }
+
+  .display-footer {
+    min-height: 18px;
+  }
+
+  .keypad {
+    padding: .8cqw 0 .9cqw;
+    row-gap: .9cqw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .key,
+  .key * {
+    transition: none !important;
+  }
+}
