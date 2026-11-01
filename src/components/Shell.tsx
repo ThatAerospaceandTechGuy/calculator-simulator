@@ -8,13 +8,12 @@ interface ShellProps {
   spec: CalculatorSpec;
   state: CalcState;
   onKey: (key: KeySpec) => void;
-  onBack?: () => void;
 }
 
 type ShellStyle = CSSProperties &
   Record<'--body-top' | '--body-bottom' | '--accent', string>;
 
-export function Shell({ spec, state, onKey, onBack }: ShellProps) {
+export function Shell({ spec, state, onKey }: ShellProps) {
   const style: ShellStyle = {
     '--body-top': spec.shell.bodyTop,
     '--body-bottom': spec.shell.bodyBottom,
@@ -30,15 +29,6 @@ export function Shell({ spec, state, onKey, onBack }: ShellProps) {
       role="group"
       aria-label={`${spec.label} simulator`}
     >
-      <header className="calc-header">
-        {onBack && (
-          <button type="button" className="calc-close" onClick={onBack} aria-label="Close calculator">
-            ×
-          </button>
-        )}
-        <span className="calc-mode">MODE</span>
-      </header>
-      <div className="calc-brand">{spec.brand}</div>
       <div className="calc-topline">
         <div className="calc-identity">
           <span className="casio-wordmark">CASIO</span>
@@ -61,9 +51,7 @@ export function Shell({ spec, state, onKey, onBack }: ShellProps) {
         <Display state={state} solar={spec.shell.solar} />
       </div>
 
-      <div className="display-footer">
-        <span className="classwiz-wordmark">{spec.shell.label}</span>
-      </div>
+      <div className="display-footer"><span className="classwiz-wordmark">{spec.shell.label}</span></div>
 
       <Keypad keys={spec.keys} shift={state.shift} onKey={onKey} />
     </div>
